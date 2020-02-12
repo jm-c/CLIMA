@@ -160,13 +160,14 @@ struct SmagorinskyLilly{FT} <: TurbulenceClosure
   C_smag::FT
 end
 
-vars_aux(::SmagorinskyLilly,FT) = @vars(Δ::FT)
+vars_aux(::SmagorinskyLilly,FT) = @vars(Δ::FT, k̂::SVector{3,FT})
 vars_gradient(::SmagorinskyLilly,FT) = @vars(θ_v::FT)
 vars_diffusive(::SmagorinskyLilly,FT) = @vars(S::SHermitianCompact{3,FT,6}, N²::FT)
 
 
-function atmos_init_aux!(::SmagorinskyLilly, ::AtmosModel, aux::Vars, geom::LocalGeometry)
+function atmos_init_aux!(::SmagorinskyLilly, m::AtmosModel, aux::Vars, geom::LocalGeometry)
   aux.turbulence.Δ = lengthscale(geom)
+  aux.turbulence.k̂ = vertical_unit_vector(m.orientation,aux)
 end
 
 function gradvariables!(m::SmagorinskyLilly, transform::Vars, state::Vars, aux::Vars, t::Real)
@@ -190,11 +191,10 @@ function turbulence_tensors(m::SmagorinskyLilly, state::Vars, diffusive::Vars, a
   # squared buoyancy correction
   Richardson = diffusive.turbulence.N² / (normS^2 + eps(normS))
   f_b² = sqrt(clamp(1 - Richardson*inv_Pr_turb, 0, 1))
-  ν = normS * f_b² * FT(m.C_smag * aux.turbulence.Δ)^2
+  ν = normS * FT(m.C_smag * aux.turbulence.Δ)^2
   
-  k̂ = vertical_unit_vector(m.orientation,aux)
   ν_vec = SVector(ν,ν,ν) 
-  ν_horz = ν_vec - dot(ν_vec,k̂)*k̂
+  ν_horz = ν_vec - dot(ν_vec,aux.turbulence.k̂)*aux.turbulence.k̂
   ν = SDiagonal(ν_horz)
   τ = (-2*ν) * S
   return ν, τ
