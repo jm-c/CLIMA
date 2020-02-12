@@ -191,6 +191,11 @@ function turbulence_tensors(m::SmagorinskyLilly, state::Vars, diffusive::Vars, a
   Richardson = diffusive.turbulence.N² / (normS^2 + eps(normS))
   f_b² = sqrt(clamp(1 - Richardson*inv_Pr_turb, 0, 1))
   ν = normS * f_b² * FT(m.C_smag * aux.turbulence.Δ)^2
+  
+  k̂ = vertical_unit_vector(m.orientation,aux)
+  ν_vec = SVector(ν,ν,ν) 
+  ν_horz = ν_vec - dot(ν_vec,k̂)*k̂
+  ν = SDiagonal(ν_horz)
   τ = (-2*ν) * S
   return ν, τ
 end
