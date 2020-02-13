@@ -19,6 +19,15 @@ using ..MoistThermodynamics
 using ..MPIStateArrays
 using ..TicToc
 
+
+# For testing and demonstration purposes only. 
+# Imports a test-file which builds a grid and 
+# sets up a destination grid.  
+# TODO: Use source functions defined in 
+# Interpolations.jl module to get the appropriate
+# functionality.
+include("../../test/Mesh/interpolation.jl")
+
 Base.@kwdef mutable struct CLIMA_Settings
     disable_gpu::Bool = false
     mpi_knows_cuda::Bool = false
@@ -348,6 +357,26 @@ function invoke!(solver_config::SolverConfiguration;
         end
         callbacks = (callbacks..., cbvtk)
     end
+
+        cb_netcdf_test = GenericCallbacks.EveryXSimulationSteps(100) do (init=false)
+          # TODO
+          # Demonstrates a placeholder callback for the NETCDF write functionality. 
+          # Note that the driver parameters (vertical extent, resolution etc) must
+          # be obtained from the `model` properties for the construction of a final
+          # useable interpolation setup.
+          #
+          # 100 step interval is hardcoded but you would want to set up something like 
+          # Settings.interpolation_interval in the model defaults.
+          #
+          # This test problem utilises the existing cubed-sphere demonstration to
+          # demonstrate how such a callback may work.
+          run_cubed_sphere_interpolation_test()
+          # Callbacks must return nothing
+          nothing
+        end
+
+
+
     callbacks = (callbacks..., user_callbacks...)
 
     # initial condition norm
