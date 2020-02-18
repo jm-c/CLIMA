@@ -11,8 +11,9 @@ using ..Atmos
 using ..HydrostaticBoussinesq
 using ..DGmethods
 using ..DGmethods.NumericalFluxes
-using ..Mesh.Topologies
 using ..Mesh.Grids
+using ..Mesh.Interpolation
+using ..Mesh.Topologies
 using ..ODESolvers
 using ..PlanetParameters
 
@@ -47,6 +48,7 @@ struct DriverConfiguration{FT}
     #
     # mesh details
     grid::DiscontinuousSpectralElementGrid
+    interp::Union{Nothing,InterpolationEntity}
     #
     # DGModel details
     numfluxnondiff::NumericalFluxNonDiffusive
@@ -58,11 +60,12 @@ struct DriverConfiguration{FT}
                                  bl::BalanceLaw,
                                  mpicomm::MPI.Comm,
                                  grid::DiscontinuousSpectralElementGrid,
+                                 interp::InterpolationEntity,
                                  numfluxnondiff::NumericalFluxNonDiffusive,
                                  numfluxdiff::NumericalFluxDiffusive,
                                  gradnumflux::NumericalFluxGradient)
         return new{FT}(name, N, array_type, solver_type, bl, mpicomm, grid,
-                       numfluxnondiff, numfluxdiff, gradnumflux)
+                       interp, numfluxnondiff, numfluxdiff, gradnumflux)
     end
 end
 
@@ -83,6 +86,8 @@ function Atmos_LES_Configuration(
         boundary       = ((0,0), (0,0), (1,2)),
         periodicity    = (true, true, false),
         meshwarp       = (x...)->identity(x),
+        idom_bnd       = nothing,
+        idom_res       = nothing,
         numfluxnondiff = Rusanov(),
         numfluxdiff    = CentralNumericalFluxDiffusive(),
         gradnumflux    = CentralNumericalFluxGradient()
@@ -112,9 +117,14 @@ function Atmos_LES_Configuration(
                                             polynomialorder=N,
                                             meshwarp=meshwarp)
 
+    if idom_bnd !== nothing && idom_res !== nothing
+        interp = InterpolationBrick(grid, idom_bnd, idom_res)
+    else
+        interp = nothing
+    end
     return DriverConfiguration(name, N, FT, array_type, solver_type, model,
-                               mpicomm, grid, numfluxnondiff, numfluxdiff,
-                               gradnumflux)
+                               mpicomm, grid, interp,
+                               numfluxnondiff, numfluxdiff, gradnumflux)
 end
 
 function Atmos_GCM_Configuration(
@@ -129,6 +139,9 @@ function Atmos_GCM_Configuration(
                                              init_state=init_GCM!),
         mpicomm            = MPI.COMM_WORLD,
         meshwarp::Function = cubedshellwarp,
+        lat_res            = FT(10.0 * π / 180.0),
+        long_res           = FT( 10.0 * π / 180.0),
+        nel_vert_grd       = -1,
         numfluxnondiff     = Rusanov(),
         numfluxdiff        = CentralNumericalFluxDiffusive(),
         gradnumflux        = CentralNumericalFluxGradient()
@@ -154,9 +167,16 @@ function Atmos_GCM_Configuration(
                                             polynomialorder=N,
                                             meshwarp=meshwarp)
 
+    if nel_vert_grd > 0
+        nhor = trunc(Int64, √( length(topology.elems) / topology.stacksize / 6))
+        rad_res = FT((vert_range[end] - vert_range[1]) / FT(nel_vert_grd))
+        interp = InterpolationCubedSphere(grid, vert_range, nhor, lat_res, long_res, rad_res)
+    else
+        interp = nothing
+    end
     return DriverConfiguration(name, N, FT, array_type, solver_type, model,
-                               mpicomm, grid, numfluxnondiff, numfluxdiff,
-                               gradnumflux)
+                               mpicomm, grid, interp,
+                               numfluxnondiff, numfluxdiff, gradnumflux)
 end
 
 function Ocean_BoxGCM_Configuration(
