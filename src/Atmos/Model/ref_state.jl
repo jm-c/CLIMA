@@ -14,7 +14,7 @@ vars_state(m::ReferenceState    , FT) = @vars()
 vars_gradient(m::ReferenceState , FT) = @vars()
 vars_diffusive(m::ReferenceState, FT) = @vars()
 vars_aux(m::ReferenceState, FT) = @vars()
-atmos_init_aux!(::ReferenceState, ::AtmosModel, aux::Vars, geom::LocalGeometry) = nothing
+atmos_init_aux!(::ReferenceState, ::AtmosModel, aux::Vars, geom::LocalGeometry, args...) = nothing
 
 """
     NoReferenceState <: ReferenceState
@@ -38,7 +38,7 @@ end
 vars_aux(m::HydrostaticState, FT) = @vars(ρ::FT, p::FT, T::FT, ρe::FT, ρq_tot::FT)
 
 
-function atmos_init_aux!(m::HydrostaticState{P,F}, atmos::AtmosModel, aux::Vars, geom::LocalGeometry) where {P,F}
+function atmos_init_aux!(m::HydrostaticState{P,F}, atmos::AtmosModel, aux::Vars, geom::LocalGeometry, args...) where {P,F}
   T,p = m.temperatureprofile(atmos.orientation, aux)
   aux.ref_state.T = T
   aux.ref_state.p = p

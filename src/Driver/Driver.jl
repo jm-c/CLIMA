@@ -199,6 +199,7 @@ struct SolverConfiguration{FT}
     forcecpu::Bool
     numberofsteps::Int
     init_args
+    aux_args
     solver
 end
 
@@ -214,69 +215,70 @@ function setup_solver(t0::FT, timeend::FT,
                       ode_solver_type=nothing,
                       ode_dt=nothing,
                       modeldata=nothing,
-                      Courant_number=0.4
+                      Courant_number=0.4,
+                      aux_args=nothing
                      ) where {FT<:AbstractFloat}
-    @tic setup_solver
+  @tic setup_solver
 
-    bl = driver_config.bl
-    grid = driver_config.grid
-    numfluxnondiff = driver_config.numfluxnondiff
-    numfluxdiff = driver_config.numfluxdiff
-    gradnumflux = driver_config.gradnumflux
+  bl = driver_config.bl
+  grid = driver_config.grid
+  numfluxnondiff = driver_config.numfluxnondiff
+  numfluxdiff = driver_config.numfluxdiff
+  gradnumflux = driver_config.gradnumflux
+  auxstate = create_auxstate(bl,grid;aux_args=aux_args)
+  # create DG model, initialize ODE state
+  dg = DGModel(bl, grid, numfluxnondiff, numfluxdiff, gradnumflux,
+               modeldata=modeldata, auxstate=auxstate)
+  @info @sprintf("Initializing %s", driver_config.name)
+  Q = init_ode_state(dg, FT(0), init_args...; forcecpu=forcecpu)
 
-    # create DG model, initialize ODE state
-    dg = DGModel(bl, grid, numfluxnondiff, numfluxdiff, gradnumflux,
-                 modeldata=modeldata)
-    @info @sprintf("Initializing %s", driver_config.name)
-    Q = init_ode_state(dg, FT(0), init_args...; forcecpu=forcecpu)
+  # TODO: using `update_aux!()` to apply filters to the state variables and
+  # `update_aux_diffusive!()` to calculate the vertical component of velocity
+  # using the integral kernels -- these should have their own interface
+  update_aux!(dg, bl, Q, FT(0))
+  update_aux_diffusive!(dg, bl, Q, FT(0))
 
-    # TODO: using `update_aux!()` to apply filters to the state variables and
-    # `update_aux_diffusive!()` to calculate the vertical component of velocity
-    # using the integral kernels -- these should have their own interface
-    update_aux!(dg, bl, Q, FT(0))
-    update_aux_diffusive!(dg, bl, Q, FT(0))
+  # if solver has been specified, use it
+  if ode_solver_type !== nothing
+      solver_type = ode_solver_type
+  else
+      solver_type = driver_config.solver_type
+  end
 
-    # if solver has been specified, use it
-    if ode_solver_type !== nothing
-        solver_type = ode_solver_type
-    else
-        solver_type = driver_config.solver_type
-    end
+  # create the linear model for IMEX solvers
+  linmodel = nothing
+  if isa(solver_type, ExplicitSolverType)
+      dtmodel = bl
+  else # solver_type === IMEXSolverType
+      linmodel = solver_type.linear_model(bl)
+      dtmodel = linmodel
+  end
 
-    # create the linear model for IMEX solvers
-    linmodel = nothing
-    if isa(solver_type, ExplicitSolverType)
-        dtmodel = bl
-    else # solver_type === IMEXSolverType
-        linmodel = solver_type.linear_model(bl)
-        dtmodel = linmodel
-    end
+  # initial Δt specified or computed
+  if ode_dt !== nothing
+      dt = ode_dt
+  else
+      dt = calculate_dt(grid, dtmodel, Courant_number)
+  end
+  numberofsteps = convert(Int, cld(timeend, dt))
+  dt = timeend / numberofsteps
 
-    # initial Δt specified or computed
-    if ode_dt !== nothing
-        dt = ode_dt
-    else
-        dt = calculate_dt(grid, dtmodel, Courant_number)
-    end
-    numberofsteps = convert(Int, cld(timeend, dt))
-    dt = timeend / numberofsteps
+  # create the solver
+  if isa(solver_type, ExplicitSolverType)
+      solver = solver_type.solver_method(dg, Q; dt=dt, t0=t0)
+  else # solver_type === IMEXSolverType
+      vdg = DGModel(linmodel, grid, numfluxnondiff, numfluxdiff, gradnumflux,
+                    auxstate=dg.auxstate, direction=VerticalDirection())
 
-    # create the solver
-    if isa(solver_type, ExplicitSolverType)
-        solver = solver_type.solver_method(dg, Q; dt=dt, t0=t0)
-    else # solver_type === IMEXSolverType
-        vdg = DGModel(linmodel, grid, numfluxnondiff, numfluxdiff, gradnumflux,
-                      auxstate=dg.auxstate, direction=VerticalDirection())
+      solver = solver_type.solver_method(dg, vdg, solver_type.linear_solver(), Q;
+                                         dt=dt, t0=t0)
+  end
 
-        solver = solver_type.solver_method(dg, vdg, solver_type.linear_solver(), Q;
-                                           dt=dt, t0=t0)
-    end
+  @toc setup_solver
 
-    @toc setup_solver
-
-    return SolverConfiguration(driver_config.name, driver_config.mpicomm, dg, Q,
-                               t0, timeend, dt, forcecpu, numberofsteps,
-                               init_args, solver)
+  return SolverConfiguration(driver_config.name, driver_config.mpicomm, dg, Q,
+                             t0, timeend, dt, forcecpu, numberofsteps,
+                             init_args, aux_args, solver)
 end
 
 """
@@ -289,125 +291,125 @@ function invoke!(solver_config::SolverConfiguration;
                  check_euclidean_distance=false,
                  adjustfinalstep=false
                 )
-    mpicomm = solver_config.mpicomm
-    dg = solver_config.dg
-    bl = dg.balancelaw
-    Q = solver_config.Q
-    FT = eltype(Q)
-    timeend = solver_config.timeend
-    forcecpu = solver_config.forcecpu
-    init_args = solver_config.init_args
-    solver = solver_config.solver
-    FT = eltype(Q)
+  mpicomm = solver_config.mpicomm
+  dg = solver_config.dg
+  bl = dg.balancelaw
+  Q = solver_config.Q
+  FT = eltype(Q)
+  timeend = solver_config.timeend
+  forcecpu = solver_config.forcecpu
+  init_args = solver_config.init_args
+  solver = solver_config.solver
+  FT = eltype(Q)
 
-    # set up callbacks
-    callbacks = ()
-    if Settings.show_updates
-        # set up the information callback
-        upd_starttime = Ref(now())
-        cbinfo = GenericCallbacks.EveryXWallTimeSeconds(Settings.update_interval, mpicomm) do (init=false)
-            if init
-                upd_starttime[] = now()
-            else
-                runtime = Dates.format(convert(Dates.DateTime,
-                                               Dates.now()-upd_starttime[]),
-                                       Dates.dateformat"HH:MM:SS")
-                energy = norm(solver_config.Q)
-                @info @sprintf("""Update
-                               simtime = %.16e
-                               runtime = %s
-                               norm(Q) = %.16e""",
-                               ODESolvers.gettime(solver),
-                               runtime,
-                               energy)
-            end
-            nothing
-        end
-        callbacks = (callbacks..., cbinfo)
-    end
-    if Settings.enable_diagnostics
-        # set up diagnostics to be collected via callback
-        cbdiagnostics = GenericCallbacks.EveryXSimulationSteps(Settings.diagnostics_interval) do (init=false)
-            if init
-                dia_starttime = replace(string(now()), ":" => ".")
-                Diagnostics.init(mpicomm, dg, Q, dia_starttime, Settings.output_dir)
-            end
-            currtime = ODESolvers.gettime(solver)
-            @info @sprintf("""Diagnostics
-                           collecting at %s""",
-                           string(currtime))
-            Diagnostics.collect(currtime)
-            nothing
-        end
-        callbacks = (callbacks..., cbdiagnostics)
-    end
-    if Settings.enable_vtk
-        # set up VTK output callback
-        step = [0]
-        cbvtk = GenericCallbacks.EveryXSimulationSteps(Settings.vtk_interval) do (init=false)
-            vprefix = @sprintf("%s_mpirank%04d_step%04d", solver_config.name,
-                               MPI.Comm_rank(mpicomm), step[1])
-            outprefix = joinpath(Settings.output_dir, vprefix)
-            statenames = Atmos.flattenednames(Atmos.vars_state(bl, FT))
-            auxnames = Atmos.flattenednames(Atmos.vars_aux(bl, FT))
-            writevtk(outprefix, Q, dg, statenames, dg.auxstate, auxnames)
-            # Generate the pvtu file for these vtk files
-            if MPI.Comm_rank(mpicomm) == 0
-                # name of the pvtu file
-                pprefix = @sprintf("%s_step%04d", solver_config.name, step[1])
-                pvtuprefix = joinpath(Settings.output_dir, pprefix)
-                # name of each of the ranks vtk files
-                prefixes = ntuple(MPI.Comm_size(mpicomm)) do i
-                    @sprintf("%s_mpirank%04d_step%04d", solver_config.name, i-1, step[1])
-                end
-                writepvtu(pvtuprefix, prefixes, (statenames..., auxnames...))
-            end
-            step[1] += 1
-            nothing
-        end
-        callbacks = (callbacks..., cbvtk)
-    end
-    callbacks = (callbacks..., user_callbacks...)
+  # set up callbacks
+  callbacks = ()
+  if Settings.show_updates
+      # set up the information callback
+      upd_starttime = Ref(now())
+      cbinfo = GenericCallbacks.EveryXWallTimeSeconds(Settings.update_interval, mpicomm) do (init=false)
+          if init
+              upd_starttime[] = now()
+          else
+              runtime = Dates.format(convert(Dates.DateTime,
+                                             Dates.now()-upd_starttime[]),
+                                     Dates.dateformat"HH:MM:SS")
+              energy = norm(solver_config.Q)
+              @info @sprintf("""Update
+                             simtime = %.16e
+                             runtime = %s
+                             norm(Q) = %.16e""",
+                             ODESolvers.gettime(solver),
+                             runtime,
+                             energy)
+          end
+          nothing
+      end
+      callbacks = (callbacks..., cbinfo)
+  end
+  if Settings.enable_diagnostics
+      # set up diagnostics to be collected via callback
+      cbdiagnostics = GenericCallbacks.EveryXSimulationSteps(Settings.diagnostics_interval) do (init=false)
+          if init
+              dia_starttime = replace(string(now()), ":" => ".")
+              Diagnostics.init(mpicomm, dg, Q, dia_starttime, Settings.output_dir)
+          end
+          currtime = ODESolvers.gettime(solver)
+          @info @sprintf("""Diagnostics
+                         collecting at %s""",
+                         string(currtime))
+          Diagnostics.collect(currtime)
+          nothing
+      end
+      callbacks = (callbacks..., cbdiagnostics)
+  end
+  if Settings.enable_vtk
+      # set up VTK output callback
+      step = [0]
+      cbvtk = GenericCallbacks.EveryXSimulationSteps(Settings.vtk_interval) do (init=false)
+          vprefix = @sprintf("%s_mpirank%04d_step%04d", solver_config.name,
+                             MPI.Comm_rank(mpicomm), step[1])
+          outprefix = joinpath(Settings.output_dir, vprefix)
+          statenames = Atmos.flattenednames(Atmos.vars_state(bl, FT))
+          auxnames = Atmos.flattenednames(Atmos.vars_aux(bl, FT))
+          writevtk(outprefix, Q, dg, statenames, dg.auxstate, auxnames)
+          # Generate the pvtu file for these vtk files
+          if MPI.Comm_rank(mpicomm) == 0
+              # name of the pvtu file
+              pprefix = @sprintf("%s_step%04d", solver_config.name, step[1])
+              pvtuprefix = joinpath(Settings.output_dir, pprefix)
+              # name of each of the ranks vtk files
+              prefixes = ntuple(MPI.Comm_size(mpicomm)) do i
+                  @sprintf("%s_mpirank%04d_step%04d", solver_config.name, i-1, step[1])
+              end
+              writepvtu(pvtuprefix, prefixes, (statenames..., auxnames...))
+          end
+          step[1] += 1
+          nothing
+      end
+      callbacks = (callbacks..., cbvtk)
+  end
+  callbacks = (callbacks..., user_callbacks...)
 
-    # initial condition norm
-    eng0 = norm(Q)
-    @info @sprintf("""Starting %s
-                   dt              = %.5e
-                   timeend         = %.5e
-                   number of steps = %d
-                   norm(Q)         = %.16e""",
-                   solver_config.name,
-                   solver_config.dt,
-                   solver_config.timeend,
-                   solver_config.numberofsteps,
-                   eng0)
+  # initial condition norm
+  eng0 = norm(Q)
+  @info @sprintf("""Starting %s
+                 dt              = %.5e
+                 timeend         = %.5e
+                 number of steps = %d
+                 norm(Q)         = %.16e""",
+                 solver_config.name,
+                 solver_config.dt,
+                 solver_config.timeend,
+                 solver_config.numberofsteps,
+                 eng0)
 
-    # run the simulation
-    @tic solve!
-    solve!(Q, solver; timeend=timeend, callbacks=callbacks, adjustfinalstep=adjustfinalstep)
-    @toc solve!
+  # run the simulation
+  @tic solve!
+  solve!(Q, solver; timeend=timeend, callbacks=callbacks, adjustfinalstep=adjustfinalstep)
+  @toc solve!
 
-    engf = norm(solver_config.Q)
+  engf = norm(solver_config.Q)
 
-    @info @sprintf("""Finished
-                   norm(Q)            = %.16e
-                   norm(Q) / norm(Q₀) = %.16e
-                   norm(Q) - norm(Q₀) = %.16e""",
-                   engf,
-                   engf/eng0,
-                   engf-eng0)
-    #=
-    if check_euclidean_distance
-        Qe = init_ode_state(dg, timeend, init_args...; forcecpu=forcecpu)
-        engfe = norm(Qe)
-        errf = euclidean_distance(solver_config.Q, Qe)
-        @info @sprintf("""Euclidean distance
-                       norm(Q - Qe)            = %.16e
-                       norm(Q - Qe) / norm(Qe) = %.16e""",
-                       errf,
-                       errf/engfe)
-    end
-    =# 
+  @info @sprintf("""Finished
+                 norm(Q)            = %.16e
+                 norm(Q) / norm(Q₀) = %.16e
+                 norm(Q) - norm(Q₀) = %.16e""",
+                 engf,
+                 engf/eng0,
+                 engf-eng0)
+  #=
+  if check_euclidean_distance
+      Qe = init_ode_state(dg, timeend, init_args...; forcecpu=forcecpu)
+      engfe = norm(Qe)
+      errf = euclidean_distance(solver_config.Q, Qe)
+      @info @sprintf("""Euclidean distance
+                     norm(Q - Qe)            = %.16e
+                     norm(Q - Qe) / norm(Qe) = %.16e""",
+                     errf,
+                     errf/engfe)
+  end
+  =# 
 
-    return engf / eng0
+  return engf / eng0
 end

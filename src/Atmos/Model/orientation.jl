@@ -30,7 +30,7 @@ end
 function vars_aux(m::NoOrientation, T)
   @vars()
 end
-atmos_init_aux!(::NoOrientation, ::AtmosModel, aux::Vars, geom::LocalGeometry) = nothing
+atmos_init_aux!(::NoOrientation, ::AtmosModel, aux::Vars, geom::LocalGeometry,args...) = nothing
 gravitational_potential(::NoOrientation, aux::Vars) = -zero(eltype(aux))
 ∇gravitational_potential(::NoOrientation, aux::Vars) = SVector{3,eltype(aux)}(0,0,0)
 altitude(orientation::NoOrientation, aux::Vars) = -zero(eltype(aux))
@@ -43,7 +43,7 @@ to the surface of the planet.
 """
 struct SphericalOrientation <: Orientation
 end
-function atmos_init_aux!(::SphericalOrientation, ::AtmosModel, aux::Vars, geom::LocalGeometry)
+function atmos_init_aux!(::SphericalOrientation, ::AtmosModel, aux::Vars, geom::LocalGeometry, args...)
   normcoord = norm(aux.coord)
   aux.orientation.Φ = grav * (normcoord - planet_radius)
   aux.orientation.∇Φ = grav / normcoord .* aux.coord
@@ -58,7 +58,7 @@ Gravity acts in the third coordinate, and the gravitational potential is relativ
 struct FlatOrientation <: Orientation
   # for Coriolis we could add latitude?
 end
-function atmos_init_aux!(::FlatOrientation, ::AtmosModel, aux::Vars, geom::LocalGeometry)
+function atmos_init_aux!(::FlatOrientation, ::AtmosModel, aux::Vars, geom::LocalGeometry, args...)
   aux.orientation.Φ = grav * aux.coord[3]
   aux.orientation.∇Φ = SVector{3,eltype(aux)}(0,0,grav)
 end
