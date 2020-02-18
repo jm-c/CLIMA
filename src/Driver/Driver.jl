@@ -9,6 +9,7 @@ using Requires
 
 using ..AdditiveRungeKuttaMethod
 using ..VTK
+using ..Atmos
 using ..ColumnwiseLUSolver
 using ..Diagnostics
 using ..GenericCallbacks
@@ -297,6 +298,7 @@ function invoke!(solver_config::SolverConfiguration;
     forcecpu = solver_config.forcecpu
     init_args = solver_config.init_args
     solver = solver_config.solver
+    FT = eltype(Q)
 
     # set up callbacks
     callbacks = ()
@@ -346,8 +348,8 @@ function invoke!(solver_config::SolverConfiguration;
             vprefix = @sprintf("%s_mpirank%04d_step%04d", solver_config.name,
                                MPI.Comm_rank(mpicomm), step[1])
             outprefix = joinpath(Settings.output_dir, vprefix)
-            statenames = flattenednames(vars_state(bl, FT))
-            auxnames = flattenednames(vars_aux(bl, FT))
+            statenames = Atmos.flattenednames(Atmos.vars_state(bl, FT))
+            auxnames = Atmos.flattenednames(Atmos.vars_aux(bl, FT))
             writevtk(outprefix, Q, dg, statenames, dg.auxstate, auxnames)
             # Generate the pvtu file for these vtk files
             if MPI.Comm_rank(mpicomm) == 0
@@ -394,7 +396,7 @@ function invoke!(solver_config::SolverConfiguration;
                    engf,
                    engf/eng0,
                    engf-eng0)
-
+    #=
     if check_euclidean_distance
         Qe = init_ode_state(dg, timeend, init_args...; forcecpu=forcecpu)
         engfe = norm(Qe)
@@ -405,6 +407,7 @@ function invoke!(solver_config::SolverConfiguration;
                        errf,
                        errf/engfe)
     end
+    =# 
 
     return engf / eng0
 end
