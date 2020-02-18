@@ -307,7 +307,7 @@ function update_aux_diffusive!(dg::DGModel, m::HBModel, Q::MPIStateArray, t::Rea
   # project w(z=0) down the stack
   # Need to be consistent with vars_aux
   # A[1] = w, A[5] = wz0
-  copy_stack_field_down!(dg, m, A, 1, 5)
+  copy_stack_field_down!(dg, m, A, 5, 1)
 
   return true
 end
