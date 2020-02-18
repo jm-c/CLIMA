@@ -225,7 +225,7 @@ function setup_solver(t0::FT, timeend::FT,
   numfluxnondiff = driver_config.numfluxnondiff
   numfluxdiff = driver_config.numfluxdiff
   gradnumflux = driver_config.gradnumflux
-  auxstate = create_auxstate(bl,grid;aux_args=aux_args)
+  auxstate = create_auxstate(bl,grid;aux_args=aux_args, forcecpu=true)
   # create DG model, initialize ODE state
   dg = DGModel(bl, grid, numfluxnondiff, numfluxdiff, gradnumflux,
                modeldata=modeldata, auxstate=auxstate)

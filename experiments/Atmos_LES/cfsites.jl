@@ -179,10 +179,9 @@ function get_ncdata()
 end
 
 function init_cfsites!(state::Vars, aux::Vars, (x,y,z), t, splines)
-  
   FT = eltype(state)
   (spl_temp, spl_pfull, spl_ucomp, spl_vcomp, spl_sphum) = splines
-
+  
   T     = FT(spl_temp(z))
   q_tot = FT(spl_sphum(z))
   u     = FT(spl_ucomp(z))
@@ -201,17 +200,7 @@ function init_cfsites!(state::Vars, aux::Vars, (x,y,z), t, splines)
     state.ρe += rand(seed)*FT(1/100)*(state.ρe)
   end
   state.moisture.ρq_tot = ρ * q_tot
-  #=
-  FT = eltype(state)
   # Assignment of state variables
-  state.ρ =  aux.ref_state.ρ
-  state.ρu = aux.ref_state.ρu
-  state.ρe = aux.ref_state.ρe
-  state.moisture.ρq_tot = aux.ref_state.ρq_tot
-  if z <= FT(500)
-    state.ρe += rand(seed)*FT(2/100)*(state.ρe)
-  end
-  =# 
 end
 
 function config_cfsites(FT, N, resolution, xmax, ymax, zmax)

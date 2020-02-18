@@ -82,7 +82,7 @@ function create_state(bl::BalanceLaw, grid, commtag)
   return state
 end
 
-function create_auxstate(bl, grid, commtag=222; aux_args=nothing)
+function create_auxstate(bl, grid, commtag=222; aux_args=nothing, forcecpu=false)
   topology = grid.topology
   Np = dofs_per_element(grid)
 
@@ -109,8 +109,17 @@ function create_auxstate(bl, grid, commtag=222; aux_args=nothing)
   vgeo = grid.vgeo
   device = typeof(auxstate.data) <: Array ? CPU() : CUDA()
   nrealelem = length(topology.realelems)
-  @launch(device, threads=(Np,), blocks=nrealelem,
-          initauxstate!(bl, Val(dim), Val(polyorder), auxstate.data, vgeo, topology.realelems, aux_args...))
+  
+  if !forcecpu
+    @launch(device, threads=(Np,), blocks=nrealelem,
+            initauxstate!(bl, Val(dim), Val(polyorder), auxstate.data, vgeo, topology.realelems, aux_args...))
+  else
+    h_auxstate = similar(auxstate, Array)
+    @launch(CPU(), threads=(Np,), blocks=nrealelem,
+            initauxstate!(bl, Val(dim), Val(polyorder), h_auxstate.data, h_vgeo, topology.realelems, aux_args...))
+    auxstate .= h_auxstate
+  end
+
   MPIStateArrays.start_ghost_exchange!(auxstate)
   MPIStateArrays.finish_ghost_exchange!(auxstate)
 
