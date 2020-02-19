@@ -1,7 +1,4 @@
-module HydrostaticBoussinesq
-
-export HydrostaticBoussinesqModel, HydrostaticBoussinesqProblem, OceanDGModel,
-       LinearHBModel, calculate_dt
+module SplitExplicit
 
 using StaticArrays
 using LinearAlgebra: I, dot, Diagonal
