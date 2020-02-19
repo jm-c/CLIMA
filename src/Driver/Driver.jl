@@ -19,6 +19,8 @@ using ..MPIStateArrays
 using ..DGmethods: update_aux!, update_aux_diffusive!
 using ..TicToc
 
+import CLIMA.Atmos: vars_state, vars_aux, vars_diffusive, flattenednames
+
 Base.@kwdef mutable struct CLIMA_Settings
     disable_gpu::Bool = false
     mpi_knows_cuda::Bool = false

@@ -26,10 +26,11 @@ function diffusive!(h::HyperDiffusion, diffusive::Vars, ∇transform::Grad, stat
 """
 struct NoHyperDiffusion <: HyperDiffusion end
 
+
+#TODO make timescale a user defined argument - sensible defaults ?
 """
   HorizontalHyperDiffusion <: HyperDiffusion
 """
-#TODO make timescale a user defined argument - sensible defaults ?
 struct HorizontalHyperDiffusion <: HyperDiffusion end
 
 vars_aux(::HorizontalHyperDiffusion, FT)                = @vars(Δ::FT)
@@ -45,7 +46,9 @@ end
 function gradvariables!(::HorizontalHyperDiffusion, atmos::AtmosModel, transform::Vars, state::Vars, aux::Vars, t::Real)
   u = state.ρu / state.ρ
   k̂ = vertical_unit_vector(atmos.orientation, aux)
-  transform.hyperdiffusion.u_horz = u .- dot(u,k̂) .* k̂ 
+
+  u_vert = dot(u,k̂) .* k̂ 
+  transform.hyperdiffusion.u_horz = u - u_vert
   transform.hyperdiffusion.h_tot = total_specific_enthalpy(atmos.moisture, atmos.orientation, state, aux)
 end
 

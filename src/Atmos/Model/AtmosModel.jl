@@ -145,9 +145,9 @@ function vars_state(m::AtmosModel, FT)
     ρu::SVector{3,FT}
     ρe::FT
     turbulence::vars_state(m.turbulence, FT)
-    hyperdiffusion::vars_state(m.hyperdiffusion, FT)
     moisture::vars_state(m.moisture, FT)
     radiation::vars_state(m.radiation, FT)
+    hyperdiffusion::vars_state(m.hyperdiffusion, FT)
   end
 end
 function vars_gradient(m::AtmosModel, FT)
@@ -155,8 +155,8 @@ function vars_gradient(m::AtmosModel, FT)
     u::SVector{3,FT}
     h_tot::FT
     turbulence::vars_gradient(m.turbulence,FT)
-    hyperdiffusion::vars_gradient(m.hyperdiffusion, FT)
     moisture::vars_gradient(m.moisture,FT)
+    hyperdiffusion::vars_gradient(m.hyperdiffusion, FT)
   end
 end
 function vars_diffusive(m::AtmosModel, FT)
@@ -354,7 +354,9 @@ end
 boundary_state!(nf, m::AtmosModel, x...) =
   atmos_boundary_state!(nf, m.boundarycondition, m, x...)
 
-  function init_state!(m::AtmosModel, state::Vars, aux::Vars, coords, t, args...)
+  boundary_state!(nf::Union{CentralHyperDiffusiveFlux, CentralDivPenalty}, m::AtmosModel, x...) = nothing
+
+function init_state!(m::AtmosModel, state::Vars, aux::Vars, coords, t, args...)
   m.init_state(state, aux, coords, t, args...)
 end
 
