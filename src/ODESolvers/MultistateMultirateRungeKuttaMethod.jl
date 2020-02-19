@@ -90,7 +90,10 @@ function ODEs.dostep!(Qvec, msmrrk::MSMRRK{SS}, param,
   Qfast = Qvec.fast  
     
   slow_rv_dQ = realview(slow.dQ)
-
+    # set state to match slow model
+    # zero out the cummulative arrays
+  initialize_fast_state!(Qfast, Qslow, fast, slow)
+    
   threads = 256
   blocks = div(length(realview(Qslow)) + threads - 1, threads)
 
@@ -129,7 +132,7 @@ function ODEs.dostep!(Qvec, msmrrk::MSMRRK{SS}, param,
 
     # get slow tendency contribution to advance fast equation
     @launch(device(Qfast), threads=threads, blocks=blocks,
-            do_integrals_and_pass_from_slow_to_fast!(Qfast, slow_rv_dQ, fast.rhs!.bl, slow.rhs!.bl))
+            pass_tendency_from_slow_to_fast!(Qfast, slow_rv_dQ, fast.rhs!.bl, slow.rhs!.bl))
       
     for substep = 1:nsubsteps
       slow_rka = nothing
@@ -143,7 +146,7 @@ function ODEs.dostep!(Qvec, msmrrk::MSMRRK{SS}, param,
 
     # reconcile slow equation using fast equation
     @launch(device(Qslow), threads=threads, blocks=blocks,
-            reconcile_fast_to_slow!(slow_rv_dQ, Qfast, slow.rhs!.bl, fast.rhs!.bl))
+            reconcile_from_fast_to_slow!(slow_rv_dQ, Qfast, slow.rhs!.bl, fast.rhs!.bl, scaling))
   end
   return nothing
 end

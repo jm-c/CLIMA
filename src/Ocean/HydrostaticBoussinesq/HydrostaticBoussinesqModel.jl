@@ -133,7 +133,8 @@ function vars_aux(m::HBModel, T)
     τ::T            # wind stress  # TODO: Should be 2D
     ν::SVector{3, T}
     κ::SVector{3, T}
-    η::T  
+    η::T
+    ∫u::T  
   end
 end
 
