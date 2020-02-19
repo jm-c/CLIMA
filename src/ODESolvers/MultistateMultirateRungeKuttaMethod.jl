@@ -127,7 +127,7 @@ function ODEs.dostep!(Qvec, msmrrk::MSMRRK{SS}, param,
     nsubsteps = ODEs.getdt(fast) > 0 ? ceil(Int, γ * dt / ODEs.getdt(fast)) : 1
     fast_dt = γ * dt / nsubsteps
 
-    # reconcile slow equation using fast equation
+    # get slow tendency contribution to advance fast equation
     @launch(device(Qfast), threads=threads, blocks=blocks,
             do_integrals_and_pass_from_slow_to_fast!(Qfast, slow_rv_dQ, fast.rhs!.bl, slow.rhs!.bl))
       
