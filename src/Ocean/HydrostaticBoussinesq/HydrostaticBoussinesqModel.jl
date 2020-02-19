@@ -117,6 +117,7 @@ end
 function vars_state(m::HBModel, T)
   @vars begin
     u::SVector{2, T}
+    η::T  
     θ::T
   end
 end
@@ -127,14 +128,13 @@ function vars_aux(m::HBModel, T)
     w::T
     pkin_reverse::T # ∫(-αᵀ θ) # TODO: remove me after better integral interface
     w_reverse::T               # TODO: remove me after better integral interface
+    wz0::T  
     pkin::T         # ∫(-αᵀ θ)
     θʳ::T           # SST given    # TODO: Should be 2D
     f::T            # coriolis
     τ::T            # wind stress  # TODO: Should be 2D
     ν::SVector{3, T}
     κ::SVector{3, T}
-    η::T
-    ∫u::T  
   end
 end
 
@@ -163,7 +163,7 @@ end
                                     A::Vars, t::Real)
   @inbounds begin
     u = Q.u # Horizontal components of velocity
-    η = A.η
+    η = Q.η
     θ = Q.θ
     w = A.w   # vertical velocity
     pkin = A.pkin
@@ -222,6 +222,7 @@ end
 
     # f × u
     S.u -= @SVector [-f * u[2], f * u[1]]
+    S.η += A.wz0  
   end
 
   return nothing
@@ -244,8 +245,8 @@ function update_aux!(dg::DGModel, m::HBModel, Q::MPIStateArray, t::Real)
   apply!(Q, (1, 2), dg.grid, vert_filter, VerticalDirection())
 
   exp_filter = MD.exp_filter
-  # Q[3] = θ
-  apply!(Q, (3,), dg.grid, exp_filter, VerticalDirection())
+  # Q[4] = θ
+  apply!(Q, (4,), dg.grid, exp_filter, VerticalDirection())
 
   return true
 end
@@ -270,6 +271,8 @@ function update_aux_diffusive!(dg::DGModel, m::HBModel, Q::MPIStateArray, t::Rea
   indefinite_stack_integral!(dg, m, Q, A, t) # bottom -> top
   reverse_indefinite_stack_integral!(dg, m, A, t) # top -> bottom
 
+  # copy down wz0
+  copy_stack_field_down!(dg, m, A, 5, 1)
   return true
 end
 
@@ -520,7 +523,5 @@ end
 
   return nothing
 end
-
-include("SurfaceModel.jl")
 
 end
