@@ -1,6 +1,6 @@
-struct BarotropicModel{M} <: BalanceLaw
+struct BarotropicModel{M} <: AbstractOceanModel
     baroclinic::M
-    function LinearHBModel(baroclinic::M) where {M}
+    function BarotropicModel(baroclinic::M) where {M}
         return new{M}(baroclinic)
     end
 end
@@ -8,17 +8,26 @@ end
 function vars_state(m::BarotropicModel, T)
     @vars begin
         η::T
-        η̄::T              # running averge of η
         U::SVector{2, T}
+        η̄::T              # running averge of η        
         Ū::SVector{2, T}  # running averge of U
     end
 end
 
+function init_state!(m::BarotropicModel, Q::Vars, A::Vars, coords, t)
+  return ocean_init_state!(m.problem, Q, A, coords, t)
+end
+
 function vars_aux(m::BarotropicModel, T)
     @vars begin
-        wz0::T
-        Gᵁ::SVector{2, T} 
+        Gᵁ::SVector{2, T}
+        weights_η::T
+        weights_U::T
     end
+end
+
+function init_aux!(m::BarotropicModel, A::Vars, geom::LocalGeometry)
+  return ocean_init_aux!(m, m.problem, A, geom)
 end
 
 vars_gradient(m::BarotropicModel, T) = @vars()
@@ -42,8 +51,7 @@ end
 
 @inline function source!(m::BarotropicModel, S::Vars, Q::Vars, A::Vars, t::Real)
     @inbounds begin
-        # S.η += A.wz0
-        S.U += A.Gᵁ 
+        S.U += A.Gᵁ
     end
 end
 
