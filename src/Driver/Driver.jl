@@ -227,7 +227,7 @@ function setup_solver(t0::FT, timeend::FT,
 
     # create DG model, initialize ODE state
     dg = DGModel(bl, grid, numfluxnondiff, numfluxdiff, gradnumflux,
-                 modeldata=modeldata, diffusion_direction=HorizontalDirection())
+                 modeldata=modeldata, diffusion_direction=EveryDirection())
     @info @sprintf("Initializing %s", driver_config.name)
     Q = init_ode_state(dg, FT(0), init_args...; forcecpu=forcecpu)
 
