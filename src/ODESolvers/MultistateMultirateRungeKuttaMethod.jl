@@ -84,43 +84,44 @@ function ODEs.dostep!(Qvec, msmrrk::MSMRRK, param,
 end
 
 function ODEs.dostep!(Qvec, msmrrk::MSMRRK{SS}, param,
-                      time::AbstractFloat, dt::AbstractFloat,
-                      in_slow_δ = nothing, in_slow_rv_dQ = nothing,
-                      in_slow_scaling = nothing) where {SS <: LSRK2N}
+                      time::AbstractFloat, slow_dt::AbstractFloat
+                     ) where {SS <: LSRK2N}
   slow = msmrrk.slow_solver
   sAlt = msmrrk.sAlt_solver
   fast = msmrrk.fast_solver
 
   Qslow = Qvec.slow
   Qfast = Qvec.fast  
-    
+
   slow_rv_dQ = realview(slow.dQ)
-    # set state to match slow model
-    # zero out the cummulative arrays
+  slow_rv_Q = realview(Qslow)
+
+  slow_bl = slow.rhs!.bl
+  fast_bl = fast.rhs!.bl
+
+  # set state to match slow model
+  # zero out the cummulative arrays
   initialize_fast_state!(Qfast, Qslow, fast, slow)
-    
+
   threads = 256
   blocks = div(length(realview(Qslow)) + threads - 1, threads)
 
   for slow_s = 1:length(slow.RKA)
     # Currnent slow state time
-    slow_stage_time = time + slow.RKC[slow_s] * dt
+    slow_stage_time = time + slow.RKC[slow_s] * slow_dt
 
     # Evaluate the slow mode
-    slow.rhs!(slow.dQ, Qslow, param, slow_stage_time, increment = true)
     # --> save tendency for the fast
-    dQ2fast = slow.dQ
+    slow.rhs!(dQ2fast, Qslow, param, slow_stage_time, increment = false)
+
+    # TODO: replace slow.rhs! call with use of dQ2fast
+    slow.rhs!(slow.dQ, Qslow, param, slow_stage_time, increment = true)
     sAlt.rhs!(slow.dQ, Qslow, param, slow_stage_time, increment = true)
 
-    if in_slow_δ !== nothing
-      slow_scaling = nothing
-      if slow_s == length(slow.RKA)
-        slow_scaling = in_slow_scaling
-      end
-      # update solution and scale RHS
-      @launch(device(Qslow), threads=threads, blocks=blocks,
-              update!(slow_rv_dQ, in_slow_rv_dQ, in_slow_δ, slow_scaling))
-    end
+    # update slow solution and scale RHS
+    @launch(device(Q), threads=threads, blocks=blocks,
+            update!(rv_slow_dQ, rv_slow_Q, RKA[s%length(RKA)+1], RKB[s],
+                    slow_dt))
 
     # Fractional time for slow stage
     if slow_s == length(slow.RKA)
@@ -129,33 +130,23 @@ function ODEs.dostep!(Qvec, msmrrk::MSMRRK{SS}, param,
       γ = slow.RKC[slow_s + 1] - slow.RKC[slow_s]
     end
 
-    # RKB for the slow with fractional time factor remove (since full
-    # integration of fast will result in scaling by γ)
-    slow_δ = slow.RKB[slow_s] / (γ)
-
-    # RKB for the slow with fractional time factor remove (since full
-    # integration of fast will result in scaling by γ)
-    nsubsteps = ODEs.getdt(fast) > 0 ? ceil(Int, γ * dt / ODEs.getdt(fast)) : 1
-    fast_dt = γ * dt / nsubsteps
+    # Determine number of substeps we need
+    fast_dt = ODEs.getdt(fast)
+    nsubsteps = fast_dt > 0 ? ceil(Int, γ * slow_dt / ODEs.getdt(fast)) : 1
+    fast_dt = γ * slow_dt / nsubsteps
 
     # get slow tendency contribution to advance fast equation
     #  ---> work with dQ2fast as input
-    @launch(device(Qfast), threads=threads, blocks=blocks,
-            pass_tendency_from_slow_to_fast!(Qfast, slow_rv_dQ, fast.rhs!.bl, slow.rhs!.bl))
-      
+    pass_tendency_from_slow_to_fast!(slow_bl, fast_bl, Qfast, slow_rv_dQ)
+
     for substep = 1:nsubsteps
-      slow_rka = nothing
-      if substep == nsubsteps
-        slow_rka = slow.RKA[slow_s%length(slow.RKA) + 1]
-      end
       fast_time = slow_stage_time + (substep - 1) * fast_dt
-      ODEs.dostep!(Qfast, fast, param, fast_time, fast_dt, slow_δ, slow_rv_dQ,
-                   slow_rka)
+      ODEs.dostep!(Qfast, fast, param, fast_time, fast_dt)
     end
 
     # reconcile slow equation using fast equation
-    @launch(device(Qslow), threads=threads, blocks=blocks,
-            reconcile_from_fast_to_slow!(slow_rv_dQ, Qfast, slow.rhs!.bl, fast.rhs!.bl, scaling))
+    reconcile_from_fast_to_slow!(slow_bl, fast_bl, slow_rv_dQ, slow_rv_Q,
+                                 realview(Qfast))
   end
   return nothing
 end

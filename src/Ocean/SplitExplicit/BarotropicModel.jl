@@ -23,6 +23,7 @@ function vars_aux(m::BarotropicModel, T)
         Gᵁ::SVector{2, T}
         weights_η::T
         weights_U::T
+        ∫u::SVector{2, T}
     end
 end
 
@@ -55,7 +56,8 @@ end
     end
 end
 
-@inline function initialize_tendency(Qfast, Qslow, fast::BarotropicModel, slow::HydrostaticBoussinesqModel)
+@inline function initialize_tendency(Qfast, Qslow, fast::BarotropicModel,
+                                     slow::HydrostaticBoussinesqModel)
     Qfast.η̄ = -0
     Qfast.Ū = @SVector [-0, -0]
 
@@ -72,7 +74,9 @@ end
     return nothing
 end
 
-@inline function reconcile_from_fast_to_slow!(Qslow, Qfast, slow::HydrostaticBoussinesqModel, fast::BarotropicModel, scaling)
+@inline function reconcile_from_fast_to_slow!(slow::HydrostaticBoussinesqModel,
+                                              fast::BarotropicModel,
+                                              dQslow, Qslow, Qfast)
     ### need to copy η to aux for 3D
 
     # project w(z=0) down the stack
@@ -81,12 +85,14 @@ end
     copy_stack_lowdim!(dgSlow, slow, dgSlow.A, Qfast, -1, 2)
 
     # need to calculate int_u using integral kernels
-    indefinite_stack_integral(dgSlow, slow, Qslow, dgSlow.A, t)
-    reverse_indefinite_stack_integral(dgSlow, slow, Qslow, dgSlow.A, t)
-    # then need to take the very top value
-    copy_stack_field_down!(dgSlow, slow, dgSlow.A, ints)
+    # u_slow := u_slow + (1/H) * (u_fast - \int_{-H}^{0} u_slow)
+    # Compute: \int_{-H}^{0} u_slow)
+    # TODO: write definite_stack_integral!
+    definite_stack_integral!(dgSlow, slow, fast, Qslow, dgFast.auxstate, t)
 
-    # Qslow.u += 1//H * (scaling * Qfast.Ū - dgSlow.A.∫u)
-    
+    # TODO: Write single kernel the takes the 2D state and reconciles in a
+    # generic fashion all the points down the stack allowing the user to modify
+    # dQ, Q, and aux from the higher dim model
+
     return nothing
 end
