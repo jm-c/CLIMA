@@ -191,6 +191,14 @@ end
 
 @inline wavespeed(m::HBModel, n⁻, _...) = abs(SVector(m.cʰ, m.cʰ, m.cᶻ)' * n⁻)
 
+# We want not have jump penalties on η (since not a flux variable)	
+function update_penalty!(::Rusanov, ::HBModel, n⁻, λ, ΔQ::Vars,	
+                         Q⁻, A⁻, Q⁺, A⁺, t)	
+  ΔQ.η = -0
+
+  return nothing
+end
+
 @inline function flux_diffusive!(m::HBModel, F::Grad, Q::Vars, D::Vars,
                                  A::Vars, t::Real)
   F.u -= Diagonal(A.ν) * D.∇u

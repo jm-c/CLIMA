@@ -196,3 +196,11 @@ function update_aux_diffusive!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::
 end
 
 @inline wavespeed(m::OceanModel, n⁻, _...) = abs(SVector(m.cʰ, m.cʰ, m.cᶻ)' * n⁻)
+
+# We want not have jump penalties on η (since not a flux variable)	
+function update_penalty!(::Rusanov, ::OceanModel, n⁻, λ, ΔQ::Vars,	
+                         Q⁻, A⁻, Q⁺, A⁺, t)	
+    ΔQ.η = -0
+
+    return nothing
+end

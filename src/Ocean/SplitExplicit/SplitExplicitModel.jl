@@ -1,5 +1,7 @@
 module SplitExplicit
 
+export OceanModel, HorizontalModel, BarotropicModel, LinearVerticalModel, AbstractOceanProblem
+
 using StaticArrays
 using LinearAlgebra: I, dot, Diagonal
 using ..VariableTemplates
