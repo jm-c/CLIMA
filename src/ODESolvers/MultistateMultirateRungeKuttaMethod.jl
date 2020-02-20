@@ -37,9 +37,11 @@ Currently only the low storage RK methods can be used as slow solvers
 
 ### References
 """
-mutable struct MultistateMultirateRungeKutta{SS, FS, RT} <: ODEs.AbstractODESolver
+mutable struct MultistateMultirateRungeKutta{SS, SA, FS, RT} <: ODEs.AbstractODESolver
   "slow solver"
   slow_solver::SS
+  "sAlt solver"
+  sAlt_solver::SA
   "fast solver"
   fast_solver::FS
   "time step"
@@ -48,14 +50,16 @@ mutable struct MultistateMultirateRungeKutta{SS, FS, RT} <: ODEs.AbstractODESolv
   t::RT
 
   function MultistateMultirateRungeKutta(slow_solver::LSRK2N,
+                                         sAlt_solver::LSRK2N,
                                          fast_solver,
                                          Q=nothing;
                                          dt=ODEs.getdt(slow_solver), t0=slow_solver.t
                                          ) where {AT<:AbstractArray}
     SS = typeof(slow_solver)
+    SA = typeof(sAlt_solver)
     FS = typeof(fast_solver)
     RT = real(eltype(slow_solver.dQ))
-    return new{SS, FS, RT}(slow_solver, fast_solver, RT(dt), RT(t0))
+    return new{SS, SA, FS, RT}(slow_solver, sAlt_solver, fast_solver, RT(dt), RT(t0))
   end
 end
 MSMRRK = MultistateMultirateRungeKutta
@@ -84,6 +88,7 @@ function ODEs.dostep!(Qvec, msmrrk::MSMRRK{SS}, param,
                       in_slow_δ = nothing, in_slow_rv_dQ = nothing,
                       in_slow_scaling = nothing) where {SS <: LSRK2N}
   slow = msmrrk.slow_solver
+  sAlt = msmrrk.sAlt_solver
   fast = msmrrk.fast_solver
 
   Qslow = Qvec.slow
@@ -103,6 +108,9 @@ function ODEs.dostep!(Qvec, msmrrk::MSMRRK{SS}, param,
 
     # Evaluate the slow mode
     slow.rhs!(slow.dQ, Qslow, param, slow_stage_time, increment = true)
+    # --> save tendency for the fast
+    dQ2fast = slow.dQ
+    sAlt.rhs!(slow.dQ, Qslow, param, slow_stage_time, increment = true)
 
     if in_slow_δ !== nothing
       slow_scaling = nothing
@@ -131,6 +139,7 @@ function ODEs.dostep!(Qvec, msmrrk::MSMRRK{SS}, param,
     fast_dt = γ * dt / nsubsteps
 
     # get slow tendency contribution to advance fast equation
+    #  ---> work with dQ2fast as input
     @launch(device(Qfast), threads=threads, blocks=blocks,
             pass_tendency_from_slow_to_fast!(Qfast, slow_rv_dQ, fast.rhs!.bl, slow.rhs!.bl))
       
