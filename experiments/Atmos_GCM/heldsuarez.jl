@@ -41,6 +41,7 @@ function config_heldsuarez(FT, N, resolution)
     model = AtmosModel{FT}(AtmosGCMConfiguration;
                            ref_state  = ref_state,
                            turbulence = ConstantViscosityWithDivergence(FT(0)),
+                           hyperdiffusion = HorizontalHyperDiffusion{FT}(60),
                            moisture   = DryModel(),
                            source     = (Gravity(), Coriolis(), held_suarez_forcing!),
                            init_state = init_heldsuarez!)
@@ -119,19 +120,19 @@ function main()
     driver_config = config_heldsuarez(FT, N, resolution)
     ode_solver_type = CLIMA.ExplicitSolverType(solver_method=LSRK144NiegemannDiehlBusch)
     solver_config = CLIMA.setup_solver(t0, timeend, driver_config,
-                                       ode_solver_type=ode_solver_type)
+                                       ode_solver_type=ode_solver_type, Courant_number=0.4)
 
     # Set up the filter callback
     filterorder = 14
     filter = ExponentialFilter(solver_config.dg.grid, 0, filterorder)
-    cbfilter = GenericCallbacks.EveryXSimulationSteps(1) do
+    cbfilter = GenericCallbacks.EveryXSimulationSteps(100000) do
         Filters.apply!(solver_config.Q, 1:size(solver_config.Q, 2),
                        solver_config.dg.grid, filter)
         nothing
     end
 
     result = CLIMA.invoke!(solver_config;
-                           user_callbacks=(cbfilter,),
+                          # user_callbacks=(cbfilter,),
                           check_euclidean_distance=true)
 end
 

@@ -376,7 +376,7 @@ function invoke!(solver_config::SolverConfiguration;
 
     step = [0]
     mkpath(joinpath(Settings.output_dir, "nc"))
-    cbnc = GenericCallbacks.EveryXSimulationSteps(100) do (init=false) # - roughset
+    cbnc = GenericCallbacks.EveryXSimulationSteps(1) do (init=false) # - roughset
         domain_height = FT(30e3) # already defined in heldsuarez! - import
         # these params need to be taken out into the hledsuarez.jl file or Settingas
         lat_res  = FT( 10.0 * π / 180.0) # 10 degree resolution - roughset
