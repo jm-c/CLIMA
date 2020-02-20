@@ -37,8 +37,8 @@ function ocean_init_state! end
 
 include("OceanModel.jl")
 include("HorizontalModel.jl")
-include("LinearVerticalModel.jl")
 include("BarotropicModel.jl")
+include("LinearVerticalModel.jl")
 include("OceanBoundaryConditions.jl")
 
 end

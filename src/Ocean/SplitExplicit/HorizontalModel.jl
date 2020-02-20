@@ -5,51 +5,10 @@ struct HorizontalModel{M} <: AbstractOceanModel
     end
 end
 
-function vars_state(m::HorizontalModel, T)
-    @vars begin
-        u::SVector{2, T}
-    end
-end
-
-function init_state!(m::HorizontalModel, Q::Vars, A::Vars, coords, t)
-  return ocean_init_state!(m.problem, Q, A, coords, t)
-end
-
-function vars_aux(m::HorizontalModel, T)
-    @vars begin
-        η::T
-        ν::SVector{2, T}
-    end
-end
-
-function init_aux!(m::HorizontalModel, A::Vars, geom::LocalGeometry)
-  return ocean_init_aux!(m, m.problem, A, geom)
-end
-
-function vars_gradient(m::HorizontalModel, T)
-  @vars begin
-    u::SVector{2, T}
-  end
-end
-
-@inline function gradvariables!(m::HorizontalModel, G::Vars, Q::Vars, A, t)
-  G.u = Q.u
-
-  return nothing
-end
-
-function vars_diffusive(m::HorizontalModel, T)
-  @vars begin
-    ∇u::SMatrix{3, 2, T, 6}
-  end
-end
-
-@inline function diffusive!(m::HorizontalModel, D::Vars, G::Grad,
-                            Q::Vars, A::Vars, t)
-  D.∇u = G.u
-
-  return nothing
-end
+vars_state(hm::HorizontalModel, T) = vars_state(hm.ocean, T)
+vars_gradient(hm::HorizontalModel, T) = vars_gradient(hm.ocean, T)
+vars_diffusive(hm::HorizontalModel, T) = vars_diffusive(hm.ocean, T)
+vars_aux(hm::HorizontalModel, T) = vars_aux(hm.ocean, T)
 
 @inline function flux_nondiffusive!(m::HorizontalModel, F::Grad, Q::Vars,
                                     A::Vars, t::Real)
