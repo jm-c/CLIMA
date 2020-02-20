@@ -244,7 +244,6 @@ Where
 
   # pressure terms
   p = pressure(m.moisture, m.orientation, state, aux)
-
   if m.ref_state isa HydrostaticState
     flux.ρu += (p-aux.ref_state.p)*I
   else

@@ -26,12 +26,12 @@ function diffusive!(h::HyperDiffusion, diffusive::Vars, ∇transform::Grad, stat
 """
 struct NoHyperDiffusion <: HyperDiffusion end
 
-
-#TODO make timescale a user defined argument - sensible defaults ?
 """
   HorizontalHyperDiffusion <: HyperDiffusion
 """
-struct HorizontalHyperDiffusion <: HyperDiffusion end
+struct HorizontalHyperDiffusion{FT} <: HyperDiffusion 
+  τ_timescale::FT
+end
 
 vars_aux(::HorizontalHyperDiffusion, FT)                = @vars(Δ::FT)
 vars_gradient(::HorizontalHyperDiffusion, FT)           = @vars(u_horz::SVector{3,FT}, h_tot::FT)
@@ -56,11 +56,11 @@ function hyperdiffusive!(h::HorizontalHyperDiffusion, hyperdiffusive::Vars, hype
                          state::Vars, aux::Vars, t::Real)
   ∇Δu_horz = hypertransform.hyperdiffusion.u_horz
   ∇Δh_tot = hypertransform.hyperdiffusion.h_tot
-  #TODO update coefficient
-  τ_timescale = 3600 * 8 
+  τ_timescale = h.τ_timescale
+
   ν₄ = (aux.hyperdiffusion.Δ/2)^4 / 2 / τ_timescale
-  hyperdiffusive.hyperdiffusion.ν∇³u_horz = ν₄ * ∇Δu_horz
-  hyperdiffusive.hyperdiffusion.ν∇³h_tot  = ν₄ * ∇Δh_tot
+  hyperdiffusive.hyperdiffusion.ν∇³u_horz = -ν₄ * ∇Δu_horz
+  hyperdiffusive.hyperdiffusion.ν∇³h_tot  = -ν₄ * ∇Δh_tot
 end
 
 function flux_nondiffusive!(h::HorizontalHyperDiffusion, flux::Grad, state::Vars, aux::Vars, t::Real) end
