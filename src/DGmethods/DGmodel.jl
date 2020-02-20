@@ -176,7 +176,7 @@ end
 
 function indefinite_stack_integral!(dg::DGModel, m::BalanceLaw,
                                     Q::MPIStateArray, auxstate::MPIStateArray,
-                                    t::Real)
+                                    t::Real, dispatch_arg = m)
 
   device = typeof(Q.data) <: Array ? CPU() : CUDA()
 
@@ -200,7 +200,7 @@ function indefinite_stack_integral!(dg::DGModel, m::BalanceLaw,
   nhorzelem = div(nelem, nvertelem)
 
   @launch(device, threads=(Nq, Nqk, 1), blocks=nhorzelem,
-          knl_indefinite_stack_integral!(m, Val(dim), Val(polyorder),
+          knl_indefinite_stack_integral!(m, dispatch_arg, Val(dim), Val(polyorder),
                                          Val(nvertelem), Q.data, auxstate.data,
                                          vgeo, grid.Imat, 1:nhorzelem,
                                          Val(nintegrals)))

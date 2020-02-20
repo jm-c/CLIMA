@@ -128,8 +128,8 @@ function vars_aux(m::HBModel, T)
     w::T
     pkin_reverse::T # ∫(-αᵀ θ) # TODO: remove me after better integral interface
     w_reverse::T               # TODO: remove me after better integral interface
-    wz0::T  
-    pkin::T         # ∫(-αᵀ θ)
+      pkin::T         # ∫(-αᵀ θ)
+      wz0::T  
     θʳ::T           # SST given    # TODO: Should be 2D
     f::T            # coriolis
     τ::T            # wind stress  # TODO: Should be 2D

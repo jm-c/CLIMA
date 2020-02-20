@@ -86,7 +86,7 @@ end
     # then need to take the very top value
     copy_stack_field_down!(dgSlow, slow, dgSlow.A, ints)
 
-    Qslow.u += 1//H * (scaling * Qfast.Ū - dgSlow.A.∫u)
+    # Qslow.u += 1//H * (scaling * Qfast.Ū - dgSlow.A.∫u)
     
     return nothing
 end

@@ -1132,7 +1132,7 @@ Computational kernel: compute indefinite integral along the vertical stack
 
 See [`DGBalanceLaw`](@ref) for usage.
 """
-function knl_indefinite_stack_integral!(bl::BalanceLaw, ::Val{dim}, ::Val{N}, ::Val{nvertelem},
+function knl_indefinite_stack_integral!(bl::BalanceLaw, dispatch_arg, ::Val{dim}, ::Val{N}, ::Val{nvertelem},
                                         Q, auxstate, vgeo, Imat,
                                         elems, ::Val{nout}
                                        ) where {dim, N, nvertelem,
@@ -1192,7 +1192,7 @@ function knl_indefinite_stack_integral!(bl::BalanceLaw, ::Val{dim}, ::Val{N}, ::
               l_aux[s] = auxstate[ijk, s, e]
             end
 
-            integrate_aux!(bl, Vars{vars_integrals(bl, FT)}(view(l_knl, :, k)),
+            integrate_aux!(dispatch_arg, Vars{vars_integrals(bl, FT)}(view(l_knl, :, k)),
               Vars{vars_state(bl, FT)}(l_Q), Vars{vars_aux(bl,FT)}(l_aux))
 
             # multiply in the curve jacobian
