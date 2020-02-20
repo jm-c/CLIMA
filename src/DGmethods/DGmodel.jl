@@ -73,15 +73,9 @@ function (dg::DGModel)(dQdt, Q, ::Nothing, t; increment=false)
   if nviscstate > 0 || nhyperviscstate > 0
 
     @launch(device, threads=(Nq, Nq, Nqk), blocks=nrealelem,
-<<<<<<< HEAD
             volumeviscterms!(bl, Val(dim), Val(polyorder), dg.diffusion_direction, Q.data,
                              Qvisc.data, Qhypervisc_grad.data, auxstate.data, vgeo, t, Dmat,
                              hypervisc_indexmap, topology.realelems))
-=======
-            volumeviscterms!(bl, Val(dim), Val(N), dg.direction, Q.data,
-                             Qvisc.data, auxstate.data, grid.vgeo, t, grid.D,
-                             topology.realelems))
->>>>>>> 36c447920ee444a1eee0259240c74b3ece6facfb
 
     if communicate
       MPIStateArrays.finish_ghost_recv!(Q)
@@ -91,18 +85,11 @@ function (dg::DGModel)(dQdt, Q, ::Nothing, t; increment=false)
     end
 
     @launch(device, threads=Nfp, blocks=nrealelem,
-<<<<<<< HEAD
             faceviscterms!(bl, Val(dim), Val(polyorder), dg.diffusion_direction,
                            dg.gradnumflux,
                            Q.data, Qvisc.data, Qhypervisc_grad.data, auxstate.data,
                            vgeo, sgeo, t, vmapM, vmapP, elemtobndy,
                            hypervisc_indexmap, topology.realelems))
-=======
-            faceviscterms!(bl, Val(dim), Val(N), dg.direction,
-                           dg.gradnumflux, Q.data, Qvisc.data, auxstate.data,
-                           grid.vgeo, grid.sgeo, t, grid.vmapM, grid.vmapP, grid.elemtobndy,
-                           topology.realelems))
->>>>>>> 36c447920ee444a1eee0259240c74b3ece6facfb
 
     if communicate
       nviscstate > 0 && MPIStateArrays.start_ghost_exchange!(Qvisc)
@@ -169,15 +156,9 @@ function (dg::DGModel)(dQdt, Q, ::Nothing, t; increment=false)
   # RHS Computation #
   ###################
   @launch(device, threads=(Nq, Nq, Nqk), blocks=nrealelem,
-<<<<<<< HEAD
           volumerhs!(bl, Val(dim), Val(polyorder), dg.diffusion_direction, dQdt.data,
                      Q.data, Qvisc.data, Qhypervisc_grad.data, auxstate.data, vgeo, t,
                      lgl_weights_vec, Dmat, topology.realelems, increment))
-=======
-          volumerhs!(bl, Val(dim), Val(N), dg.direction, dQdt.data,
-                     Q.data, Qvisc.data, auxstate.data, grid.vgeo, t,
-                     grid.ω, grid.D, topology.realelems, increment))
->>>>>>> 36c447920ee444a1eee0259240c74b3ece6facfb
 
   if communicate
     if nviscstate > 0 || nhyperviscstate > 0
@@ -200,13 +181,8 @@ function (dg::DGModel)(dQdt, Q, ::Nothing, t; increment=false)
           facerhs!(bl, Val(dim), Val(N), dg.direction,
                    dg.numfluxnondiff,
                    dg.numfluxdiff,
-<<<<<<< HEAD
                    dQdt.data, Q.data, Qvisc.data, Qhypervisc_grad.data,
                    auxstate.data, vgeo, sgeo, t, vmapM, vmapP, elemtobndy,
-=======
-                   dQdt.data, Q.data, Qvisc.data,
-                   auxstate.data, grid.vgeo, grid.sgeo, t, grid.vmapM, grid.vmapP, grid.elemtobndy,
->>>>>>> 36c447920ee444a1eee0259240c74b3ece6facfb
                    topology.realelems))
 
   # Just to be safe, we wait on the sends we started.
