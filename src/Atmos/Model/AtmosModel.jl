@@ -356,7 +356,7 @@ boundary_state!(nf, m::AtmosModel, x...) =
   boundary_state!(nf::Union{CentralHyperDiffusiveFlux, CentralDivPenalty}, m::AtmosModel, x...) = nothing
 
 function init_state!(m::AtmosModel, state::Vars, aux::Vars, coords, t, args...)
-  m.init_state(state, aux, coords, t, args...)
+  m.init_state(m, state, aux, coords, t, args...)
 end
 
 boundary_flux_diffusive!(nf::NumericalFluxDiffusive,
