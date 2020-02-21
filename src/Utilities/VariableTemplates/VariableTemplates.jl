@@ -150,7 +150,7 @@ function varsindex(::Type{S}, insym::Symbol) where S <: NamedTuple
       varrange = offset .+ (1:N)
       offset += N
     else
-      varrange = offset .+ varsize(T)
+      varrange = offset .+ (1:varsize(T))
       offset += varsize(T)
     end
     if insym == varsym
