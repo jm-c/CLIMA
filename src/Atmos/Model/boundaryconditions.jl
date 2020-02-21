@@ -6,9 +6,9 @@ using CLIMA.PlanetParameters
 export InitStateBC, DYCOMS_BC, RayleighBenardBC
 
 export AtmosBC,
-  Impenetrable, FreeSlip, NoSlip,
-  Insulating, PrescribedTemperature,
-  Impermeable
+  Impenetrable, FreeSlip, NoSlip, DragLaw,
+  Insulating, PrescribedTemperature, ConstEnergyFlux,
+  Impermeable, ConstMoistureFlux
 
 """
     AtmosBC(momentum = Impenetrable(FreeSlip())
@@ -114,6 +114,23 @@ function atmos_boundary_state!(nf::NumericalFluxGradient, bc_momentum::Impenetra
   state⁺.ρu = zero(state⁺.ρu)
 end
 
+struct DragLaw{FT} <: MomentumDragBC
+  C::FT
+end
+function atmos_normal_boundary_flux_diffusive!(nf, bc_momentum_drag::DragLaw, atmos,
+  fluxᵀn, n, state⁻, diff⁻, aux⁻,
+  state⁺, diff⁺, aux⁺,
+  bctype, t, state1⁻, diff1⁻, aux1⁻)
+
+  u1⁻ = state1⁻.ρu / state1⁻.ρ
+  Pu1⁻ = u1⁻ .- dot(u1⁻, n) .* n
+
+  τn = -bc_momentum_drag.C * norm(Pu1⁻) * Pu1⁻
+
+  fluxᵀn.ρu += state⁻.ρ   * τn
+  fluxᵀn.ρe += state⁻.ρu' * τn
+end
+
 
 abstract type EnergyBC end
 
@@ -144,6 +161,17 @@ function atmos_boundary_state!(nf, bc_energy::PrescribedTemperature, atmos, stat
   state⁺.ρe = E_int⁺ + state⁺.ρ * gravitational_potential(atmos.orientation, aux⁻)
 end
 
+struct ConstEnergyFlux{FT} <: EnergyBC
+  nd_h_tot::FT
+end
+function atmos_normal_boundary_flux_diffusive!(nf, bc_energy::ConstEnergyFlux, atmos,
+    fluxᵀn, n⁻, state⁻, diff⁻, aux⁻, state⁺, diff⁺, aux⁺, bctype, t, args...)
+
+  fluxᵀn.ρe += bc_energy.nd_h_tot * state⁻.ρ
+end
+
+
+
 
 abstract type MoistureBC end
 
@@ -159,42 +187,23 @@ No moisture flux.
 struct Impermeable <: MoistureBC
 end
 
-
-#=
-struct ConstEvaporation{FT} <: MoistureBC
-  evaporationrate::FT
+struct ConstMoistureFlux{FT} <: MoistureBC
+  nd_q_tot::FT
 end
-=#
 
-#=
-  atmos_boundary_state!(nf, bc_momentum.drag, atmos, state⁺, aux⁺, n, state⁻, aux⁻, bctype, t, state1⁻, aux1⁻)
+function atmos_normal_boundary_flux_diffusive!(nf, bc_moisture::ConstMoistureFlux, atmos,
+    fluxᵀn, n⁻, state⁻, diff⁻, aux⁻, state⁺, diff⁺, aux⁺, bctype, t, args...)
+
+  fluxᵀn.ρ += bc_moisture.nd_q_tot * state⁻.ρ
+  fluxᵀn.ρu += bc_moisture.nd_q_tot .* state⁻.ρu
+  # assumes EquilMoist
+  fluxᵀn.moisture.ρq_tot += bc_moisture.nd_q_tot * state⁻.ρ
 end
-=#
 
 
 
-#=
-AtmosBoundary(
-  momentum=Impenetrable(FreeSlip()), # or Impenetrable(Drag(coef))
-  energy=Insulating(),
-  moisture=Impermeable(), # or PrescribedEvaporation(??), etc.
-)
 
 
-boundary = (bottom=
-  AtmosBoundary(
-    momentum=Impenetrable(ConstDrag(coef)), # or Impenetrable(Drag(coef))
-    energy=Insulating(),
-    moisture=Evaporation(Ocean()/Land()/Prescribed()), # or PrescribedEvaporation(??), etc.
-  ),
-  top=
-  AtmosBoundary(
-    momentum=Impenetrable(FreeSlip()), # or Impenetrable(Drag(coef))
-    energy=Insulating(),
-    moisture=Impermeable(), # or PrescribedEvaporation(??), etc.
-  )
-)
-=#
 
 function atmos_boundary_flux_diffusive!(nf::NumericalFluxDiffusive,
                                         bc,
