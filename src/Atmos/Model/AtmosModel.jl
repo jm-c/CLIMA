@@ -27,6 +27,7 @@ import CLIMA.DGmethods: BalanceLaw, vars_aux, vars_state, vars_gradient,
                         calculate_dt
 import ..DGmethods.NumericalFluxes: boundary_state!,
                                     boundary_flux_diffusive!,
+                                    normal_boundary_flux_diffusive!,
                                     NumericalFluxNonDiffusive,
                                     NumericalFluxGradient,
                                     NumericalFluxDiffusive
@@ -77,8 +78,7 @@ function AtmosModel{FT}(::Type{AtmosLESConfiguration};
                          source::S=( Gravity(),
                                      Coriolis(),
                                      GeostrophicForcing{FT}(7.62e-5, 0, 0)),
-                         # TODO: Probably want to have different bc for state and diffusion...
-                         boundarycondition::BC=NoFluxBC(),
+                         boundarycondition::BC=AtmosBC(),
                          init_state::IS=nothing) where {FT<:AbstractFloat,O,RS,T,M,P,R,S,BC,IS}
   @assert init_state ≠ nothing
 
@@ -109,7 +109,7 @@ function AtmosModel{FT}(::Type{AtmosGCMConfiguration};
                          precipitation::P      = NoPrecipitation(),
                          radiation::R          = NoRadiation(),
                          source::S             = (Gravity(), Coriolis()),
-                         boundarycondition::BC = NoFluxBC(),
+                         boundarycondition::BC = AtmosBC(),
                          init_state::IS=nothing) where {FT<:AbstractFloat,O,RS,T,M,P,R,SU,S,BC,IS}
   @assert init_state ≠ nothing
   atmos = (
@@ -314,25 +314,9 @@ function source!(m::AtmosModel, source::Vars, state::Vars, diffusive::Vars, aux:
   atmos_source!(m.source, m, source, state, diffusive, aux, t)
 end
 
-boundary_state!(nf, m::AtmosModel, x...) =
-  atmos_boundary_state!(nf, m.boundarycondition, m, x...)
-
 function init_state!(m::AtmosModel, state::Vars, aux::Vars, coords, t, args...)
   m.init_state(m, state, aux, coords, t, args...)
 end
 
-boundary_flux_diffusive!(nf::NumericalFluxDiffusive,
-                         atmos::AtmosModel,
-                         F,
-                         state⁺, diff⁺, aux⁺, n⁻,
-                         state⁻, diff⁻, aux⁻,
-                         bctype, t,
-                         state1⁻, diff1⁻, aux1⁻) =
-  atmos_boundary_flux_diffusive!(nf, atmos.boundarycondition, atmos,
-                                 F,
-                                 state⁺, diff⁺, aux⁺, n⁻,
-                                 state⁻, diff⁻, aux⁻,
-                                 bctype, t,
-                                 state1⁻, diff1⁻, aux1⁻)
 
 end # module

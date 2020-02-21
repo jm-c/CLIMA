@@ -66,9 +66,6 @@ end
 
 function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
 
-  # Boundary conditions
-  bc = NoFluxBC()
-
   # Choose explicit solver
   ode_solver = CLIMA.ExplicitSolverType(solver_method=LSRK144NiegemannDiehlBusch)
 

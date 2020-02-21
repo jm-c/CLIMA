@@ -109,7 +109,7 @@ function run(mpicomm, ArrayType,
                          ref_state=NoReferenceState(),
                         turbulence=AnisoMinDiss{FT}(1),
                             source=source,
-                 boundarycondition=NoFluxBC(),
+                 boundarycondition=AtmosBC(),
                         init_state=Initialise_Density_Current!)
   # -------------- Define dgbalancelaw --------------------------- #
   dg = DGModel(model,
