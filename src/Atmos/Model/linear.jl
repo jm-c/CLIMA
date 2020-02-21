@@ -52,7 +52,7 @@ function wavespeed(lm::AtmosLinearModel, nM, state::Vars, aux::Vars, t::Real)
 end
 
 function boundary_state!(nf::NumericalFluxNonDiffusive, atmoslm::AtmosLinearModel, args...)
-  atmos_boundary_state!(nf, AtmosBC(), atmos, args...)
+  atmos_boundary_state!(nf, AtmosBC(), atmoslm, args...)
 end
 function boundary_state!(nf::NumericalFluxDiffusive, atmoslm::AtmosLinearModel, args...)
   nothing
