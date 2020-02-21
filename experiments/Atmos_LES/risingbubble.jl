@@ -13,7 +13,7 @@ using CLIMA.VariableTemplates
 
 # ------------------------ Description ------------------------- #
 # 1) Dry Rising Bubble (circular potential temperature perturbation)
-# 2) Boundaries - `All Walls` : NoFluxBC (Impermeable Walls)
+# 2) Boundaries - `All Walls` : Impenetrable(FreeSlip())
 #                               Laterally periodic
 # 3) Domain - 2500m[horizontal] x 2500m[horizontal] x 2500m[vertical]
 # 4) Timeend - 1000s

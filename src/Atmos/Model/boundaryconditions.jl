@@ -117,17 +117,17 @@ end
 
 abstract type EnergyBC end
 
+function atmos_boundary_state!(nf, bc_energy::EnergyBC, atmos, args...)
+end
+function atmos_normal_boundary_flux_diffusive!(nf, bc_energy::EnergyBC, atmos, args...)
+end
+
 """
     Insulating() :: EnergyBC
 
 No energy flux.
 """
 struct Insulating <: EnergyBC
-end
-
-function atmos_boundary_state!(nf, bc_energy::Insulating, atmos, args...)
-end
-function atmos_normal_boundary_flux_diffusive!(nf, bc_energy::Insulating, atmos, args...)
 end
 
 """
@@ -143,16 +143,14 @@ function atmos_boundary_state!(nf, bc_energy::PrescribedTemperature, atmos, stat
   E_int⁺ = state⁺.ρ * cv_d * (bc_energy.T - T_0)
   state⁺.ρe = E_int⁺ + state⁺.ρ * gravitational_potential(atmos.orientation, aux⁻)
 end
-function atmos_normal_boundary_flux_diffusive!(nf, bc_energy::PrescribedTemperature, atmos, args...)
-end
-
-
-
-
 
 
 abstract type MoistureBC end
 
+function atmos_boundary_state!(nf, bc_moisture::MoistureBC, atmos, args...)
+end
+function atmos_normal_boundary_flux_diffusive!(nf, bc_moisture::MoistureBC, atmos, args...)
+end
 """
     Impermeable() :: MoistureBC
 
@@ -160,10 +158,7 @@ No moisture flux.
 """
 struct Impermeable <: MoistureBC
 end
-function atmos_boundary_state!(nf, bc_moisture::Impermeable, atmos, args...)
-end
-function atmos_normal_boundary_flux_diffusive!(nf, bc_moisture::Impermeable, atmos, args...)
-end
+
 
 #=
 struct ConstEvaporation{FT} <: MoistureBC

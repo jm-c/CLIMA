@@ -16,7 +16,7 @@ using CLIMA.PlanetParameters
 using CLIMA.VariableTemplates
 
 import CLIMA.DGmethods: boundary_state!
-import CLIMA.Atmos: atmos_boundary_state!, atmos_boundary_flux_diffusive!, flux_diffusive!
+import CLIMA.Atmos: EnergyBC, atmos_normal_boundary_flux_diffusive!
 import CLIMA.DGmethods.NumericalFluxes: boundary_flux_diffusive!
 
 # -------------------- Surface Driven Bubble ----------------- #
@@ -24,7 +24,7 @@ import CLIMA.DGmethods.NumericalFluxes: boundary_flux_diffusive!
 # 1) Boundary Conditions:
 #       Laterally periodic with no flow penetration through top
 #       and bottom wall boundaries.
-#       Momentum: No flow penetration [NoFluxBC()]
+#       Momentum: Impenetrable(FreeSlip())
 #       Energy:   Spatially varying non-zero heat flux up to time t₁
 # 2) Domain: 1250m × 1250m × 1000m
 # Configuration defaults are in `src/Driver/Configurations.jl`
@@ -40,7 +40,7 @@ X₁ refers to the first interior node
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct SurfaceDrivenBubbleBC{FT} <: BoundaryCondition
+struct SurfaceDrivenBubbleBC{FT} <: EnergyBC
   "Prescribed MSEF Magnitude `[W/m^2]`"
   F₀::FT
   "Time Cutoff `[s]`"
@@ -48,57 +48,18 @@ struct SurfaceDrivenBubbleBC{FT} <: BoundaryCondition
   "Plume wavelength scaling"
   x₀::FT
 end
-function atmos_boundary_state!(nf::Union{NumericalFluxNonDiffusive,NumericalFluxGradient},
-                               bc::SurfaceDrivenBubbleBC,
-                               m::AtmosModel,
-                               Y⁺::Vars, A⁺::Vars,
-                               n⁻,
-                               Y⁻::Vars, A⁻::Vars,
-                               bctype, t,_...)
-  # Use default NoFluxBC()
-  atmos_boundary_state!(nf, NoFluxBC(), m,
-                        Y⁺, A⁺, n⁻,
-                        Y⁻, A⁻,
-                        bctype, t)
-end
-function atmos_boundary_flux_diffusive!(nf::CentralNumericalFluxDiffusive,
-                                        bc::SurfaceDrivenBubbleBC,
-                                        m::AtmosModel,
-                                        F,
-                                        Y⁺::Vars, Σ⁺::Vars, A⁺::Vars,
-                                        n⁻,
-                                        Y⁻::Vars, Σ⁻::Vars, A⁻::Vars,
-                                        bctype, t, Y₁⁻, Σ₁⁻, A₁⁻)
-  # Working precision
-  FT = eltype(Y⁻)
-  # Assign vertical unit vector and coordinates
-  k̂  = vertical_unit_vector(m.orientation, A⁻)
-  x = A⁻.coord[1]
-  y = A⁻.coord[2]
-  # Unpack fields
-  t₁    = bc.t₁
-  x₀    = bc.x₀
-  F₀ =  t < t₁ ? bc.F₀ : -zero(FT)
-  # Apply boundary condition per face (1 == bottom wall)
-  if bctype != 1
-    atmos_boundary_flux_diffusive!(nf, NoFluxBC(), m, F,
-                                   Y⁺, Σ⁺, A⁺,
-                                   n⁻,
-                                   Y⁻, Σ⁻, A⁻,
-                                   bctype, t,
-                                   Y₁⁻, Σ₁⁻, A₁⁻)
-  else
-    atmos_boundary_state!(nf, NoFluxBC(), m,
-                          Y⁺, Σ⁺, A⁺,
-                          n⁻,
-                          Y⁻, Σ⁻, A⁻,
-                          bctype, t)
-    MSEF    = F₀ * (cospi(2*x/x₀))^2 * (cospi(2*y/x₀))^2
-    ∇h_tot⁺ = MSEF * k̂
-    _,τ⁺ = turbulence_tensors(m.turbulence, Y⁺, Σ⁺, A⁺, t)
-    flux_diffusive!(m, F, Y⁺, τ⁺, ∇h_tot⁺)
+
+function atmos_normal_boundary_flux_diffusive!(nf, bc_energy::SurfaceDrivenBubbleBC, atmos,
+    fluxᵀn, n⁻, state⁻, diff⁻, aux⁻, state⁺, diff⁺, aux⁺, bctype, t, args...)
+
+  if t < bc_energy.t₁
+    x = aux⁻.coord[1]
+    y = aux⁻.coord[2]
+    MSEF = bc_energy.F₀ * (cospi(2*x/bc_energy.x₀))^2 * (cospi(2*y/bc_energy.x₀))^2
+    fluxᵀn.ρe += MSEF * state⁻.ρ
   end
 end
+
 
 """
   Surface Driven Thermal Bubble
@@ -143,7 +104,6 @@ function config_surfacebubble(FT, N, resolution, xmax, ymax, zmax)
   t₁ = FT(500)
   # Plume wavelength scaling
   x₀ = xmax
-  bc = SurfaceDrivenBubbleBC{FT}(F₀, t₁, x₀)
 
   C_smag = FT(0.23)
 
@@ -153,7 +113,8 @@ function config_surfacebubble(FT, N, resolution, xmax, ymax, zmax)
   model = AtmosModel{FT}(AtmosLESConfiguration;
                          turbulence=SmagorinskyLilly{FT}(C_smag),
                          source=(Gravity(),),
-                         boundarycondition=bc,
+                         boundarycondition=(AtmosBC(energy=SurfaceDrivenBubbleBC{FT}(F₀, t₁, x₀)),
+                                            AtmosBC()),
                          moisture=EquilMoist(),
                          init_state=init_surfacebubble!)
   config = CLIMA.Atmos_LES_Configuration("SurfaceDrivenBubble",
