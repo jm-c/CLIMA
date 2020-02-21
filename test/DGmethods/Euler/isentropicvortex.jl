@@ -13,7 +13,7 @@ using CLIMA.MPIStateArrays: euclidean_distance
 using CLIMA.PlanetParameters: kappa_d
 using CLIMA.MoistThermodynamics: air_density, total_energy, soundspeed_air
 using CLIMA.Atmos: AtmosModel, NoOrientation, NoReferenceState,
-                   DryModel, NoPrecipitation, NoRadiation, PeriodicBC,
+                   DryModel, NoPrecipitation, NoRadiation,
                    ConstantViscosityWithDivergence, vars_state,
                    AtmosLESConfiguration
 using CLIMA.VariableTemplates: flattenednames
@@ -145,7 +145,7 @@ function run(mpicomm, ArrayType, polynomialorder, numelems,
                           turbulence=ConstantViscosityWithDivergence(0.0),
                             moisture=DryModel(),
                               source=nothing,
-                   boundarycondition=PeriodicBC(),
+                   boundarycondition=(),
                           init_state=isentropicvortex_initialcondition!)
 
   dg = DGModel(model, grid, NumericalFlux(),

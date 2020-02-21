@@ -17,7 +17,7 @@ using CLIMA.Atmos: AtmosModel,
                    AtmosAcousticLinearModel, RemainderModel,
                    FlatOrientation,
                    NoReferenceState, ReferenceState,
-                   DryModel, NoRadiation, PeriodicBC, NoPrecipitation,
+                   DryModel, NoRadiation, NoPrecipitation,
                    Gravity, HydrostaticState, IsothermalProfile,
                    ConstantViscosityWithDivergence, vars_state, soundspeed
 using CLIMA.Atmos
@@ -79,7 +79,7 @@ let
                                   range(FT(1); length=Nev+1, stop=2))
                 end
 
-                topl = StackedBrickTopology(mpicomm, brickrange)
+                topl = StackedBrickTopology(mpicomm, brickrange; periodicity = ntuple(n -> true, dim))
 
                 function warpfun(ξ1, ξ2, ξ3)
                     FT = eltype(ξ1)
@@ -105,7 +105,7 @@ let
                                        turbulence=ConstantViscosityWithDivergence(FT(2)),
                                        moisture=DryModel(),
                                        source=Gravity(),
-                                       boundarycondition=PeriodicBC(),
+                                       boundarycondition=(),
                                        init_state=initialcondition!)
 
                 dg = DGModel(model, grid, Rusanov(), CentralNumericalFluxDiffusive(),
@@ -133,19 +133,19 @@ let
 
                 if (FT==Float64 && dim == 2)
                     @test abs(courant(nondiffusive_courant, dg, model, Q, Δt, HorizontalDirection()) - c_h) <= 1e-15
-                    @test abs(courant(diffusive_courant,    dg, model, Q, Δt, HorizontalDirection()) - d_h) <= 1e-4 
+                    @test abs(courant(diffusive_courant,    dg, model, Q, Δt, HorizontalDirection()) - d_h) <= 1e-4
                     @test abs(courant(nondiffusive_courant, dg, model, Q, Δt, VerticalDirection()) - c_v) <= 1e-16
-                    @test abs(courant(diffusive_courant,    dg, model, Q, Δt, VerticalDirection()) - d_v) <= 1e-8 
+                    @test abs(courant(diffusive_courant,    dg, model, Q, Δt, VerticalDirection()) - d_v) <= 1e-8
                 elseif (FT==Float64 && dim == 3)
                     @test abs(courant(nondiffusive_courant, dg, model, Q, Δt, HorizontalDirection()) - c_h) <= 1e-11
-                    @test abs(courant(diffusive_courant,    dg, model, Q, Δt, HorizontalDirection()) - d_h) <= 1e-4 
+                    @test abs(courant(diffusive_courant,    dg, model, Q, Δt, HorizontalDirection()) - d_h) <= 1e-4
                     @test abs(courant(nondiffusive_courant, dg, model, Q, Δt, VerticalDirection()) - c_v) <= 1e-11
-                    @test abs(courant(diffusive_courant,    dg, model, Q, Δt, VerticalDirection()) - d_v) <= 1e-8 
+                    @test abs(courant(diffusive_courant,    dg, model, Q, Δt, VerticalDirection()) - d_v) <= 1e-8
                 elseif (dim == 2)
                     @test abs(courant(nondiffusive_courant, dg, model, Q, Δt, HorizontalDirection()) - c_h) <= 1e-11
                     @test abs(courant(diffusive_courant,    dg, model, Q, Δt, HorizontalDirection()) - d_h) <= 1e-4
                     @test abs(courant(nondiffusive_courant, dg, model, Q, Δt, VerticalDirection()) - c_v) <= 1e-16
-                    @test abs(courant(diffusive_courant,    dg, model, Q, Δt, VerticalDirection()) - d_v) <= 1e-8 
+                    @test abs(courant(diffusive_courant,    dg, model, Q, Δt, VerticalDirection()) - d_v) <= 1e-8
                 else
                     @test abs(courant(nondiffusive_courant, dg, model, Q, Δt, HorizontalDirection()) - c_h) <= 1e-11
                     @test abs(courant(diffusive_courant,    dg, model, Q, Δt, HorizontalDirection()) - d_h) <= 1e-4

@@ -1,9 +1,9 @@
 using CLIMA.PlanetParameters
-export BoundaryCondition, PeriodicBC, InitStateBC
+export BoundaryCondition, InitStateBC
 
 
 using CLIMA.PlanetParameters
-export PeriodicBC, InitStateBC, DYCOMS_BC, RayleighBenardBC
+export InitStateBC, DYCOMS_BC, RayleighBenardBC
 
 export AtmosBC,
   Impenetrable, FreeSlip, NoSlip,
@@ -253,15 +253,6 @@ end
 abstract type BoundaryCondition
 end
 
-"""
-    PeriodicBC <: BoundaryCondition
-
-Assume that the topology is periodic and hence nothing special needs to be done at the boundaries.
-"""
-struct PeriodicBC <: BoundaryCondition end
-
-# TODO: assert somewhere that the topology is actually periodic when using those
-atmos_boundary_state!(_, ::PeriodicBC, _...) = nothing
 
 
 """

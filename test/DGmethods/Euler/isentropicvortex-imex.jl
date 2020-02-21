@@ -17,7 +17,7 @@ using CLIMA.Atmos: AtmosModel,
                    AtmosAcousticLinearModel, RemainderModel,
                    NoOrientation,
                    NoReferenceState, ReferenceState,
-                   DryModel, NoPrecipitation, NoRadiation, PeriodicBC,
+                   DryModel, NoPrecipitation, NoRadiation,
                    ConstantViscosityWithDivergence, vars_state,
                    AtmosLESConfiguration
 using CLIMA.VariableTemplates: @vars, Vars, flattenednames
@@ -116,7 +116,7 @@ function run(mpicomm, ArrayType, polynomialorder, numelems, setup,
                           turbulence=ConstantViscosityWithDivergence(FT(0)),
                             moisture=DryModel(),
                               source=nothing,
-                   boundarycondition=PeriodicBC(),
+                   boundarycondition=(),
                           init_state=isentropicvortex_initialcondition!)
 
   linear_model = AtmosAcousticLinearModel(model)
