@@ -28,7 +28,11 @@ function boundary_state!(nf, atmos::AtmosModel, args...)
   atmos_boundary_state!(nf, atmos.boundarycondition, atmos, args...)
 end
 function atmos_boundary_state!(nf, tup::Tuple, atmos, state⁺, aux⁺, n, state⁻, aux⁻, bctype, t, args...)
-  atmos_boundary_state!(nf, tup[bctype], atmos, state⁺, aux⁺, n, state⁻, aux⁻, bctype, t, args...)
+  @unroll for i = 1:length(tup)
+    if i == bctype
+      return atmos_boundary_state!(nf, tup[i], atmos, state⁺, aux⁺, n, state⁻, aux⁻, bctype, t, args...)
+    end
+  end
 end
 
 function atmos_boundary_state!(nf, bc::AtmosBC, atmos, args...)
@@ -51,10 +55,14 @@ function atmos_normal_boundary_flux_diffusive!(nf, tup::Tuple, atmos::AtmosModel
     fluxᵀn, n⁻, state⁻, diff⁻, aux⁻,
     state⁺, diff⁺, aux⁺,
     bctype, t, args...)
-  atmos_normal_boundary_flux_diffusive!(nf, tup[bctype], atmos,
-      fluxᵀn, n⁻, state⁻, diff⁻, aux⁻,
-      state⁺, diff⁺, aux⁺,
-      bctype, t, args...)
+  @unroll for i = 1:length(tup)
+    if i == bctype
+      return atmos_normal_boundary_flux_diffusive!(nf, tup[i], atmos,
+          fluxᵀn, n⁻, state⁻, diff⁻, aux⁻,
+          state⁺, diff⁺, aux⁺,
+          bctype, t, args...)
+    end
+  end
 end
 function atmos_normal_boundary_flux_diffusive!(nf, bc::AtmosBC, atmos::AtmosModel, args...)
   atmos_normal_boundary_flux_diffusive!(nf, bc.momentum, atmos, args...)
