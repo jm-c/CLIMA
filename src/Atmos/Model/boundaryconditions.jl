@@ -222,63 +222,6 @@ end
 
 
 
-
-
-
-function atmos_boundary_flux_diffusive!(nf::NumericalFluxDiffusive,
-                                        bc,
-                                        atmos::AtmosModel,
-                                        F,
-                                        state⁺, diff⁺, aux⁺, n⁻,
-                                        state⁻, diff⁻, aux⁻,
-                                        bctype, t, state1⁻, diff1⁻, aux1⁻)
-  atmos_boundary_state!(nf, bc, atmos,
-                        state⁺, diff⁺, aux⁺, n⁻,
-                        state⁻, diff⁻, aux⁻,
-                        bctype, t,
-                        state1⁻, diff1⁻, aux1⁻)
-  flux_diffusive!(atmos, F, state⁺, diff⁺, aux⁺, t)
-end
-
-#TODO: figure out a better interface for this.
-# at the moment we can just pass a function, but we should do something better
-# need to figure out how subcomponents will interact.
-function atmos_boundary_state!(::Union{NumericalFluxNonDiffusive, NumericalFluxGradient},
-                               f::Function, m::AtmosModel, state⁺::Vars,
-                               aux⁺::Vars, n⁻, state⁻::Vars, aux⁻::Vars, bctype,
-                               t, _...)
-  f(state⁺, aux⁺, n⁻, state⁻, aux⁻, bctype, t)
-end
-
-function atmos_boundary_state!(::NumericalFluxDiffusive, f::Function,
-                               m::AtmosModel, state⁺::Vars, diff⁺::Vars,
-                               aux⁺::Vars, n⁻, state⁻::Vars, diff⁻::Vars,
-                               aux⁻::Vars, bctype, t, _...)
-  f(state⁺, diff⁺, aux⁺, n⁻, state⁻, diff⁻, aux⁻, bctype, t)
-end
-
-# lookup boundary condition by face
-function atmos_boundary_state!(nf::Union{NumericalFluxNonDiffusive, NumericalFluxGradient},
-                               bctup::Tuple, m::AtmosModel, state⁺::Vars,
-                               aux⁺::Vars, n⁻, state⁻::Vars, aux⁻::Vars, bctype,
-                               t, _...)
-  atmos_boundary_state!(nf, bctup[bctype], m, state⁺, aux⁺, n⁻, state⁻, aux⁻,
-                        bctype, t)
-end
-
-function atmos_boundary_state!(nf::NumericalFluxDiffusive,
-                               bctup::Tuple, m::AtmosModel, state⁺::Vars,
-                               diff⁺::Vars, aux⁺::Vars, n⁻, state⁻::Vars,
-                               diff⁻::Vars, aux⁻::Vars, bctype, t, _...)
-  atmos_boundary_state!(nf, bctup[bctype], m, state⁺, diff⁺, aux⁺, n⁻, state⁻,
-                        diff⁻, aux⁻, bctype, t)
-end
-
-abstract type BoundaryCondition
-end
-
-
-
 """
     InitStateBC
 
@@ -288,7 +231,7 @@ mainly useful for cases where the problem has an explicit solution.
 # TODO: This should be fixed later once BCs are figured out (likely want
 # different things here?)
 """
-struct InitStateBC <: BoundaryCondition
+struct InitStateBC
 end
 function atmos_boundary_state!(::Union{NumericalFluxNonDiffusive, NumericalFluxGradient},
                                bc::InitStateBC, m::AtmosModel, state⁺::Vars,
