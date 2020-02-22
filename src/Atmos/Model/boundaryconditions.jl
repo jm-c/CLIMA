@@ -38,8 +38,14 @@ function atmos_boundary_state!(nf, bc::AtmosBC, atmos, args...)
 end
 
 
-function normal_boundary_flux_diffusive!(nf, atmos::AtmosModel, fluxᵀn::Vars{S}, args...) where {S}
-  atmos_normal_boundary_flux_diffusive!(nf, atmos.boundarycondition, atmos, fluxᵀn, args...)
+function normal_boundary_flux_diffusive!(nf, atmos::AtmosModel, fluxᵀn::Vars{S},
+  n⁻, state⁻, diff⁻, aux⁻,
+  state⁺, diff⁺, aux⁺,
+  bctype::Integer, t, args...) where {S}
+  atmos_normal_boundary_flux_diffusive!(nf, atmos.boundarycondition, atmos, fluxᵀn,
+    n⁻, state⁻, diff⁻, aux⁻,
+    state⁺, diff⁺, aux⁺,
+    bctype, t, args...)
 end
 function atmos_normal_boundary_flux_diffusive!(nf, tup::Tuple, atmos::AtmosModel,
     fluxᵀn, n⁻, state⁻, diff⁻, aux⁻,
@@ -260,7 +266,7 @@ end
 
 
 """
-    InitStateBC <: BoundaryCondition
+    InitStateBC
 
 Set the value at the boundary to match the `init_state!` function. This is
 mainly useful for cases where the problem has an explicit solution.
@@ -276,9 +282,21 @@ function atmos_boundary_state!(::Union{NumericalFluxNonDiffusive, NumericalFluxG
                                t, _...)
   init_state!(m, state⁺, aux⁺, aux⁺.coord, t)
 end
-function atmos_boundary_state!(::NumericalFluxDiffusive, bc::InitStateBC,
-                               m::AtmosModel, state⁺::Vars, diff⁺::Vars,
-                               aux⁺::Vars, n⁻, state⁻::Vars, diff⁻::Vars,
-                               aux⁻::Vars, bctype, t, _...)
+
+function atmos_normal_boundary_flux_diffusive!(nf, bc::InitStateBC, atmos,
+    fluxᵀn, n⁻, state⁻, diff⁻, aux⁻,
+    state⁺, diff⁺, aux⁺,
+    bctype, t, args...)
+
+  normal_boundary_flux_diffusive!(nf, atmos,
+      fluxᵀn, n⁻, state⁻, diff⁻, aux⁻,
+      state⁺, diff⁺, aux⁺,
+      bc, t, args...)
+
+end
+function boundary_state!(::NumericalFluxDiffusive,
+     m::AtmosModel, state⁺::Vars, diff⁺::Vars,
+     aux⁺::Vars, n⁻, state⁻::Vars, diff⁻::Vars,
+     aux⁻::Vars, bc::InitStateBC, t, args...)
   init_state!(m, state⁺, aux⁺, aux⁺.coord, t)
 end
