@@ -145,7 +145,8 @@ function atmos_normal_boundary_flux_diffusive!(nf, bc_momentum_drag::DragLaw, at
   u1⁻ = state1⁻.ρu / state1⁻.ρ
   Pu1⁻ = u1⁻ .- dot(u1⁻, n) .* n
 
-  τn = -bc_momentum_drag.C * norm(Pu1⁻) * Pu1⁻
+  # NOTE: difference from design docs since normal points outwards
+  τn = bc_momentum_drag.C * norm(Pu1⁻) * Pu1⁻
 
   fluxᵀn.ρu += state⁻.ρ   * τn
   fluxᵀn.ρe += state⁻.ρu' * τn
@@ -214,10 +215,11 @@ end
 function atmos_normal_boundary_flux_diffusive!(nf, bc_moisture::ConstMoistureFlux, atmos,
     fluxᵀn, n⁻, state⁻, diff⁻, aux⁻, state⁺, diff⁺, aux⁺, bctype, t, args...)
 
-  fluxᵀn.ρ += bc_moisture.nd_q_tot * state⁻.ρ
+  nρd_q_tot = bc_moisture.nd_q_tot * state⁻.ρ
+  fluxᵀn.ρ += nρd_q_tot
   fluxᵀn.ρu += bc_moisture.nd_q_tot .* state⁻.ρu
   # assumes EquilMoist
-  fluxᵀn.moisture.ρq_tot += bc_moisture.nd_q_tot * state⁻.ρ
+  fluxᵀn.moisture.ρq_tot += nρd_q_tot
 end
 
 

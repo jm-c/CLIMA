@@ -216,8 +216,8 @@ function config_dycoms(FT, N, resolution, xmax, ymax, zmax)
                            radiation=radiation,
                               source=source,
                    boundarycondition=(AtmosBC(momentum=Impenetrable(DragLaw(C_drag)),
-                                              energy  =ConstEnergyFlux(LHF+SHF),
-                                              moisture=ConstMoistureFlux(LHF/LH_v0)),
+                                              energy  =ConstEnergyFlux(-(LHF+SHF)),
+                                              moisture=ConstMoistureFlux(-(LHF/LH_v0)),
                                       AtmosBC()),
                           init_state=ics)
 

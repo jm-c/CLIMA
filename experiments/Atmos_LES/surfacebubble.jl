@@ -56,7 +56,7 @@ function atmos_normal_boundary_flux_diffusive!(nf, bc_energy::SurfaceDrivenBubbl
     x = aux⁻.coord[1]
     y = aux⁻.coord[2]
     MSEF = bc_energy.F₀ * (cospi(2*x/bc_energy.x₀))^2 * (cospi(2*y/bc_energy.x₀))^2
-    fluxᵀn.ρe += MSEF * state⁻.ρ
+    fluxᵀn.ρe -= MSEF * state⁻.ρ
   end
 end
 
