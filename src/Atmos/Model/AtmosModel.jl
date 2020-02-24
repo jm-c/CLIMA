@@ -165,6 +165,8 @@ function vars_aux(m::AtmosModel, FT)
     ∫dz::vars_integrals(m, FT)
     ∫dnz::vars_integrals(m, FT)
     coord::SVector{3,FT}
+    u_horz::SVector{3,FT}
+    u_vert::SVector{3,FT}
     orientation::vars_aux(m.orientation, FT)
     ref_state::vars_aux(m.ref_state,FT)
     turbulence::vars_aux(m.turbulence,FT)
@@ -294,6 +296,11 @@ end
 
 function atmos_nodal_update_aux!(m::AtmosModel, state::Vars, aux::Vars,
                                  t::Real)
+  k̂ = vertical_unit_vector(atmos.orientation,aux)
+  u = state.ρu / state.ρ
+  aux.u_horz = u .- dot(u,k̂)*k̂
+  aux.u_vert = u .- aux.u_horz
+
   atmos_nodal_update_aux!(m.moisture, m, state, aux, t)
   atmos_nodal_update_aux!(m.radiation, m, state, aux, t)
   atmos_nodal_update_aux!(m.turbulence, m, state, aux, t)

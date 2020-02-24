@@ -400,6 +400,8 @@ function invoke!(solver_config::SolverConfiguration;
         intrp_cs = InterpolationCubedSphere(dg.grid, vert_range, nhor, lat_res, long_res, rad_res)
         iv = DA(Array{FT}(undef, intrp_cs.Npl, nvars))
         
+        # project state vector onto sphere
+
         # interpolate and save 
         interpolate_local!(intrp_cs, Q.data, iv)
         svi = write_interpolated_data(intrp_cs, iv, varnames, filename)
