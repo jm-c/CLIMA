@@ -17,14 +17,14 @@ using CLIMA.VariableTemplates
 
 
 const pressure_ground = MSLP
-const T_init = 300.0 # unit: Kelvin 
+const T_init = 255.0 # unit: Kelvin 
 const domain_height = 30e3 # unit: meters
 
 
 function init_heldsuarez!(bl, state, aux, coords, t)
     FT            = eltype(state)
     pressure_sfc  = FT(MSLP)
-    temp_init     = FT(300.0)
+    temp_init     = FT(255.0)
     radius        = FT(planet_radius)
 
     # Initialize the state variables of the model
@@ -32,7 +32,7 @@ function init_heldsuarez!(bl, state, aux, coords, t)
     scale_height = R_d * temp_init / grav
     pressure = pressure_sfc * exp(-height / scale_height)
 
-    rnd      = FT(1.0 + rand(Uniform(-1e-3, 1e-3)))
+    rnd      = FT(1.0 + rand(Uniform(-1e-2, 1e-2)))
     state.ρ  = rnd * air_density(temp_init, pressure)
     state.ρu = SVector{3, FT}(0, 0, 0)
     state.ρe = state.ρ * (internal_energy(temp_init) + aux.orientation.Φ)
@@ -44,24 +44,27 @@ end
 function config_heldsuarez(FT, poly_order, resolution)
     name          = "HeldSuarez"
     domain_height = FT(30e3)
-    T_ref         = FT(300.0)
-    Rh_ref        = FT(0.0)
     turb_visc     = FT(0.0)
     
+    # Reference state
+    Rh_ref            = FT(0.0)
+    Γ                 = FT(0.7 * grav / cp_d)
+    T_sfc             = FT(300.0)
+    T_min             = FT(200.0)
+    temp_profile_ref  = LinearTemperatureProfile(T_min, T_sfc, Γ)
+    ref_state         = HydrostaticState(temp_profile_ref, Rh_ref)
+
     # Rayleigh sponge 
     zsponge = FT(15e3) # begin of sponge
-    τ_relax = FT(2 * 86400) # sponge relaxation time 
+    τ_relax = FT(86400) # sponge relaxation time 
     u_relax = SVector(FT(0), FT(0), FT(0)) # relaxation velocity
-    rayleigh_sponge = RayleighSponge{FT}(domain_height, zsponge, 1/τ_relax, u_relax, 4)
+    rayleigh_sponge = RayleighSponge{FT}(domain_height, zsponge, 1/τ_relax, u_relax, 2)
 
     # Configure the model setup
     model = AtmosModel{FT}(
       AtmosGCMConfiguration;
       
-      ref_state  = HydrostaticState(
-                     IsothermalProfile(T_ref), 
-                     Rh_ref
-                   ),
+      ref_state  = ref_state,
       turbulence = ConstantViscosityWithDivergence(turb_visc),
       moisture   = DryModel(),
       source     = (Gravity(), Coriolis(), held_suarez_forcing!, rayleigh_sponge),
@@ -138,7 +141,7 @@ function main()
     poly_order    = 5                 # discontinuous Galerkin polynomial order
     n_horz        = 5                 # horizontal element number  
     n_vert        = 5                 # vertical element number
-    days          = 100               # experiment day number
+    days          = 400               # experiment day number
     timestart     = FT(0)             # start time (seconds)
     timeend       = FT(days*24*60*60) # end time (seconds)
     
