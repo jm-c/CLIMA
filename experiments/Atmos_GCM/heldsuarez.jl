@@ -7,8 +7,7 @@ using Test
 using CLIMA
 using CLIMA.Atmos
 using CLIMA.GenericCallbacks
-using CLIMA.LowStorageRungeKuttaMethod
-using CLIMA.AdditiveRungeKuttaMethod
+using CLIMA.ODESolvers
 using CLIMA.ColumnwiseLUSolver: ManyColumnLU
 using CLIMA.Mesh.Filters
 using CLIMA.Mesh.Grids
@@ -33,7 +32,7 @@ function init_heldsuarez!(bl, state, aux, coords, t)
     scale_height = R_d * temp_init / grav
     pressure = pressure_sfc * exp(-height / scale_height)
 
-    rnd      = FT(1.0 + rand(Uniform([-1e-3, 1e-3])))
+    rnd      = FT(1.0 + rand(Uniform(-1e-3, 1e-3)))
     state.ρ  = rnd * air_density(temp_init, pressure)
     state.ρu = SVector{3, FT}(0, 0, 0)
     state.ρe = state.ρ * (internal_energy(temp_init) + aux.orientation.Φ)
@@ -48,6 +47,12 @@ function config_heldsuarez(FT, poly_order, resolution)
     T_ref         = FT(300.0)
     Rh_ref        = FT(0.0)
     turb_visc     = FT(0.0)
+    
+    # Rayleigh sponge 
+    zsponge = FT(15e3)
+    τ_relax = FT(0.5 / 60 / 60 / 24)
+    u_relax = SVector(FT(0), FT(0), FT(0))
+    rayleigh_sponge = RayleighSponge{FT}(domain_height, zsponge, τ_relax, u_relax, 2)
 
     # Configure the model setup
     model = AtmosModel{FT}(
@@ -59,7 +64,7 @@ function config_heldsuarez(FT, poly_order, resolution)
                    ),
       turbulence = ConstantViscosityWithDivergence(turb_visc),
       moisture   = DryModel(),
-      source     = (Gravity(), Coriolis(), held_suarez_forcing!),
+      source     = (Gravity(), Coriolis(), held_suarez_forcing!, rayleigh_sponge),
       init_state = init_heldsuarez!
     )
 
@@ -121,7 +126,7 @@ function held_suarez_forcing!(bl, source, state, diffusive, aux, t::Real)
     k_v           = k_f * height_factor
 
     # TODO: bottom drag should only be applied in tangential direction
-    source.ρu += -k_v * ρu
+    source.ρu += -k_v * projection_tangential(bl.orientation, aux, ρu)
     source.ρe += -k_T * ρ * cv_d * (T - T_equil)
 end
 
@@ -133,7 +138,7 @@ function main()
     poly_order    = 5                 # discontinuous Galerkin polynomial order
     n_horz        = 5                 # horizontal element number  
     n_vert        = 5                 # vertical element number
-    days          = 1                 # experiment day number
+    days          = 30                 # experiment day number
     timestart     = FT(0)             # start time (seconds)
     timeend       = FT(days*24*60*60) # end time (seconds)
     
