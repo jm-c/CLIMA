@@ -138,7 +138,7 @@ function main()
     poly_order    = 5                 # discontinuous Galerkin polynomial order
     n_horz        = 5                 # horizontal element number  
     n_vert        = 5                 # vertical element number
-    days          = 30                 # experiment day number
+    days          = 100               # experiment day number
     timestart     = FT(0)             # start time (seconds)
     timeend       = FT(days*24*60*60) # end time (seconds)
     
@@ -160,7 +160,7 @@ function main()
       timeend, 
       driver_config,
       ode_solver_type=ode_solver_type,
-      Courant_number=0.2,
+      Courant_number=0.05,
       forcecpu=true
     )
 
