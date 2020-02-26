@@ -49,10 +49,10 @@ function config_heldsuarez(FT, poly_order, resolution)
     turb_visc     = FT(0.0)
     
     # Rayleigh sponge 
-    zsponge = FT(15e3)
-    τ_relax = FT(0.5 / 60 / 60 / 24)
-    u_relax = SVector(FT(0), FT(0), FT(0))
-    rayleigh_sponge = RayleighSponge{FT}(domain_height, zsponge, τ_relax, u_relax, 2)
+    zsponge = FT(15e3) # begin of sponge
+    τ_relax = FT(2 * 86400) # sponge relaxation time 
+    u_relax = SVector(FT(0), FT(0), FT(0)) # relaxation velocity
+    rayleigh_sponge = RayleighSponge{FT}(domain_height, zsponge, 1/τ_relax, u_relax, 4)
 
     # Configure the model setup
     model = AtmosModel{FT}(
@@ -160,7 +160,7 @@ function main()
       timeend, 
       driver_config,
       ode_solver_type=ode_solver_type,
-      Courant_number=0.4,
+      Courant_number=0.2,
       forcecpu=true
     )
 
