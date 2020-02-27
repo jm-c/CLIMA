@@ -46,7 +46,7 @@ A `BalanceLaw` for atmosphere modeling.
 
 # Usage
 
-    AtmosModel(orientation, ref_state, turbulence, moisture, radiation, source,
+    AtmosModel(orientation, ref_state, turbulence, hyperdiffusion, moisture, radiation, source,
                boundarycondition, init_state)
 
 """

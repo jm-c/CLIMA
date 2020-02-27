@@ -167,7 +167,7 @@ function config_surfacebubble(FT, N, resolution, xmax, ymax, zmax)
 
   model = AtmosModel{FT}(AtmosLESConfiguration;
                          turbulence=SmagorinskyLilly{FT}(C_smag),
-                         hyperdiffusion=HyperDiffusion{FT}(30),
+                         hyperdiffusion=HorizontalHyperDiffusion{FT}(30),
                          source=(Gravity(),),
                          boundarycondition=bc,
                          moisture=EquilMoist(),
