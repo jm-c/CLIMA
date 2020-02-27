@@ -1851,28 +1851,28 @@ function facehyperviscterms!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder},
 
         # Load minus side data
         @unroll for s = 1:ngradtransformstate
-          l_QM[s] = Q[vid⁻, s, e⁻]
+          l_Q⁻[s] = Q[vid⁻, s, e⁻]
         end
         
         @unroll for s = 1:nauxstate
-          l_auxM[s] = auxstate[vid⁻, s, e⁻]
+          l_aux⁻[s] = auxstate[vid⁻, s, e⁻]
         end
 
         @unroll for s = 1:ngradlapstate
-          l_lapM[s] = Qhypervisc_div[vid⁻, s, e⁻]
+          l_lap⁻[s] = Qhypervisc_div[vid⁻, s, e⁻]
         end
 
         # Load plus side data
         @unroll for s = 1:ngradtransformstate
-          l_QP[s] = Q[vid⁺, s, e⁺]
+          l_Q⁺[s] = Q[vid⁺, s, e⁺]
         end
         
         @unroll for s = 1:nauxstate
-          l_auxP[s] = auxstate[vid⁺, s, e⁺]
+          l_aux⁺[s] = auxstate[vid⁺, s, e⁺]
         end
 
         @unroll for s = 1:ngradlapstate
-          l_lapP[s] = Qhypervisc_div[vid⁺, s, e⁺]
+          l_lap⁺[s] = Qhypervisc_div[vid⁺, s, e⁺]
         end
 
         bctype = elemtobndy[f, e]
@@ -1880,23 +1880,23 @@ function facehyperviscterms!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder},
           numerical_flux_hyperdiffusive!(hyperviscnumflux, bl,
                                          Vars{vars_hyperdiffusive(bl, FT)}(l_Qhypervisc),
                                          nM,
-                                         Vars{vars_gradient_laplacian(bl, FT)}(l_lapM),
-                                         Vars{vars_state(bl, FT)}(l_QM),
-                                         Vars{vars_aux(bl, FT)}(l_auxM),
-                                         Vars{vars_gradient_laplacian(bl, FT)}(l_lapP),
-                                         Vars{vars_state(bl, FT)}(l_QP),
-                                         Vars{vars_aux(bl, FT)}(l_auxP),
+                                         Vars{vars_gradient_laplacian(bl, FT)}(l_lap⁻),
+                                         Vars{vars_state(bl, FT)}(l_Q⁻),
+                                         Vars{vars_aux(bl, FT)}(l_aux⁻),
+                                         Vars{vars_gradient_laplacian(bl, FT)}(l_lap⁺),
+                                         Vars{vars_state(bl, FT)}(l_Q⁺),
+                                         Vars{vars_aux(bl, FT)}(l_aux⁺),
                                          t)
         else
           numerical_boundary_flux_hyperdiffusive!(hyperviscnumflux, bl,
                                                   Vars{vars_hyperdiffusive(bl, FT)}(l_Qhypervisc),
                                                   nM,
-                                                  Vars{vars_gradient_laplacian(bl, FT)}(l_lapM),
-                                                  Vars{vars_state(bl, FT)}(l_QM),
-                                                  Vars{vars_aux(bl, FT)}(l_auxM),
-                                                  Vars{vars_gradient_laplacian(bl, FT)}(l_lapP),
-                                                  Vars{vars_state(bl, FT)}(l_QP),
-                                                  Vars{vars_aux(bl, FT)}(l_auxP),
+                                                  Vars{vars_gradient_laplacian(bl, FT)}(l_lap⁻),
+                                                  Vars{vars_state(bl, FT)}(l_Q⁻),
+                                                  Vars{vars_aux(bl, FT)}(l_aux⁻),
+                                                  Vars{vars_gradient_laplacian(bl, FT)}(l_lap⁺),
+                                                  Vars{vars_state(bl, FT)}(l_Q⁺),
+                                                  Vars{vars_aux(bl, FT)}(l_aux⁺),
                                                   bctype, t)
         end
         
