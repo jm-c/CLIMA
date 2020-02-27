@@ -460,7 +460,7 @@ function facerhs!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder}, ::direction,
         end
         
         @unroll for s = 1:nhyperviscstate
-          l_QhyperviscM[s] = Qhypervisc_grad[vidM, s, eM]
+          l_Qhypervisc⁻[s] = Qhypervisc_grad[vid⁻, s, e⁻]
         end
 
         @unroll for s = 1:nauxstate
@@ -481,7 +481,7 @@ function facerhs!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder}, ::direction,
         end
         
         @unroll for s = 1:nhyperviscstate
-          l_QhyperviscP[s] = Qhypervisc_grad[vidP, s, eP]
+          l_Qhypervisc⁺[s] = Qhypervisc_grad[vid⁺, s, e⁺]
         end
 
         @unroll for s = 1:nauxstate
@@ -1520,21 +1520,21 @@ function facedivgrad!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder},
         sM, vMI = sgeo[_sM, n, f, e], sgeo[_vMI, n, f, e]
         idM, idP = vmapM[n, f, e], vmapP[n, f, e]
 
-        eM, eP = e, ((idP - 1) ÷ Np) + 1
-        vidM, vidP = ((idM - 1) % Np) + 1,  ((idP - 1) % Np) + 1
+        e⁻, e⁺ = e, ((idP - 1) ÷ Np) + 1
+        vid⁻, vid⁺ = ((idM - 1) % Np) + 1,  ((idP - 1) % Np) + 1
 
         # Load minus side data
         @unroll for s = 1:ngradlapstate
-          l_gradM[1, s] = Qhypervisc_grad[vidM, 3(s - 1) + 1, eM]
-          l_gradM[2, s] = Qhypervisc_grad[vidM, 3(s - 1) + 2, eM]
-          l_gradM[3, s] = Qhypervisc_grad[vidM, 3(s - 1) + 3, eM]
+          l_gradM[1, s] = Qhypervisc_grad[vid⁻, 3(s - 1) + 1, e⁻]
+          l_gradM[2, s] = Qhypervisc_grad[vid⁻, 3(s - 1) + 2, e⁻]
+          l_gradM[3, s] = Qhypervisc_grad[vid⁻, 3(s - 1) + 3, e⁻]
         end
 
         # Load plus side data
         @unroll for s = 1:ngradlapstate
-          l_gradP[1, s] = Qhypervisc_grad[vidP, 3(s - 1) + 1, eP]
-          l_gradP[2, s] = Qhypervisc_grad[vidP, 3(s - 1) + 2, eP]
-          l_gradP[3, s] = Qhypervisc_grad[vidP, 3(s - 1) + 3, eP]
+          l_gradP[1, s] = Qhypervisc_grad[vid⁺, 3(s - 1) + 1, e⁺]
+          l_gradP[2, s] = Qhypervisc_grad[vid⁺, 3(s - 1) + 2, e⁺]
+          l_gradP[3, s] = Qhypervisc_grad[vid⁺, 3(s - 1) + 3, e⁺]
         end
 
         bctype = elemtobndy[f, e]
@@ -1554,7 +1554,7 @@ function facedivgrad!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder},
         end
 
         @unroll for s = 1:ngradlapstate
-          Qhypervisc_div[vidM, s, eM] += vMI * sM * l_div[s]
+          Qhypervisc_div[vid⁻, s, e⁻] += vMI * sM * l_div[s]
         end
       end
       # Need to wait after even faces to avoid race conditions
@@ -1846,33 +1846,33 @@ function facehyperviscterms!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder},
         sM, vMI = sgeo[_sM, n, f, e], sgeo[_vMI, n, f, e]
         idM, idP = vmapM[n, f, e], vmapP[n, f, e]
 
-        eM, eP = e, ((idP - 1) ÷ Np) + 1
-        vidM, vidP = ((idM - 1) % Np) + 1,  ((idP - 1) % Np) + 1
+        e⁻, e⁺ = e, ((idP - 1) ÷ Np) + 1
+        vid⁻, vid⁺ = ((idM - 1) % Np) + 1,  ((idP - 1) % Np) + 1
 
         # Load minus side data
         @unroll for s = 1:ngradtransformstate
-          l_QM[s] = Q[vidM, s, eM]
+          l_QM[s] = Q[vid⁻, s, e⁻]
         end
         
         @unroll for s = 1:nauxstate
-          l_auxM[s] = auxstate[vidM, s, eM]
+          l_auxM[s] = auxstate[vid⁻, s, e⁻]
         end
 
         @unroll for s = 1:ngradlapstate
-          l_lapM[s] = Qhypervisc_div[vidM, s, eM]
+          l_lapM[s] = Qhypervisc_div[vid⁻, s, e⁻]
         end
 
         # Load plus side data
         @unroll for s = 1:ngradtransformstate
-          l_QP[s] = Q[vidP, s, eP]
+          l_QP[s] = Q[vid⁺, s, e⁺]
         end
         
         @unroll for s = 1:nauxstate
-          l_auxP[s] = auxstate[vidP, s, eP]
+          l_auxP[s] = auxstate[vid⁺, s, e⁺]
         end
 
         @unroll for s = 1:ngradlapstate
-          l_lapP[s] = Qhypervisc_div[vidP, s, eP]
+          l_lapP[s] = Qhypervisc_div[vid⁺, s, e⁺]
         end
 
         bctype = elemtobndy[f, e]
@@ -1901,7 +1901,7 @@ function facehyperviscterms!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder},
         end
         
         @unroll for s = 1:nhyperviscstate
-          Qhypervisc_grad[vidM, s, eM] += vMI * sM * l_Qhypervisc[s]
+          Qhypervisc_grad[vid⁻, s, e⁻] += vMI * sM * l_Qhypervisc[s]
         end
       end
       # Need to wait after even faces to avoid race conditions

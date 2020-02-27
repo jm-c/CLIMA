@@ -50,7 +50,7 @@ A `BalanceLaw` for atmosphere modeling.
                boundarycondition, init_state)
 
 """
-struct AtmosModel{FT,O,RS,T,HD,M,P,R,SU,S,BC,IS} <: BalanceLaw
+struct AtmosModel{FT,O,RS,T,HD,M,P,R,S,BC,IS} <: BalanceLaw
   orientation::O
   ref_state::RS
   turbulence::T
@@ -88,7 +88,7 @@ function AtmosModel{FT}(::Type{AtmosLESConfiguration};
                                      GeostrophicForcing{FT}(7.62e-5, 0, 0)),
                          # TODO: Probably want to have different bc for state and diffusion...
                          boundarycondition::BC=NoFluxBC(),
-                         init_state::IS=nothing) where {FT<:AbstractFloat,O,RS,T,HD,M,P,R,SU,S,BC,IS}
+                         init_state::IS=nothing) where {FT<:AbstractFloat,O,RS,T,HD,M,P,R,S,BC,IS}
   @assert init_state ≠ nothing
 
   atmos = (
@@ -121,7 +121,7 @@ function AtmosModel{FT}(::Type{AtmosGCMConfiguration};
                          radiation::R          = NoRadiation(),
                          source::S             = (Gravity(), Coriolis()),
                          boundarycondition::BC = NoFluxBC(),
-                         init_state::IS=nothing) where {FT<:AbstractFloat,O,RS,T,HD,M,P,R,SU,S,BC,IS}
+                         init_state::IS=nothing) where {FT<:AbstractFloat,O,RS,T,HD,M,P,R,S,BC,IS}
   @assert init_state ≠ nothing
   atmos = (
         orientation,
@@ -136,7 +136,18 @@ function AtmosModel{FT}(::Type{AtmosGCMConfiguration};
         init_state,
        )
 
-  return AtmosModel{FT,typeof.(atmos)...}(atmos...)
+  return AtmosModel{FT,typeof.(
+                          orientation,
+                          ref_state,
+                          turbulence,
+                          hyperdiffusion,
+                          moisture,
+                          precipitation,
+                          radiation,
+                          source,
+                          boundarycondition,
+                          init_state,
+                              )...}(atmos...)
 end
 
 function vars_state(m::AtmosModel, FT)
