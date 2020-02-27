@@ -15,6 +15,9 @@ using CLIMA.MoistThermodynamics
 using CLIMA.PlanetParameters
 using CLIMA.VariableTemplates
 
+# Import directional keywords (CLIMA.Mesh.Grids)
+import CLIMA.Mesh.Grids: VerticalDirection, HorizontalDirection, EveryDirection
+
 
 const pressure_ground = MSLP
 const T_init = 255.0 # unit: Kelvin 
@@ -32,7 +35,7 @@ function init_heldsuarez!(bl, state, aux, coords, t)
     scale_height = R_d * temp_init / grav
     pressure = pressure_sfc * exp(-height / scale_height)
 
-    rnd      = FT(1.0 + rand(Uniform(-1e-2, 1e-2)))
+    rnd      = FT(1.0 + rand(Uniform(-1e-6, 1e-6)))
     state.ρ  = rnd * air_density(temp_init, pressure)
     state.ρu = SVector{3, FT}(0, 0, 0)
     state.ρe = state.ρ * (internal_energy(temp_init) + aux.orientation.Φ)
@@ -56,7 +59,7 @@ function config_heldsuarez(FT, poly_order, resolution)
 
     # Rayleigh sponge 
     zsponge = FT(15e3) # begin of sponge
-    τ_relax = FT(86400) # sponge relaxation time 
+    τ_relax = FT(60*60) # sponge relaxation time 
     u_relax = SVector(FT(0), FT(0), FT(0)) # relaxation velocity
     rayleigh_sponge = RayleighSponge{FT}(domain_height, zsponge, 1/τ_relax, u_relax, 2)
 
@@ -90,15 +93,16 @@ function held_suarez_forcing!(bl, source, state, diffusive, aux, t::Real)
 
     FT = eltype(state)
 
-    ρ     = state.ρ
-    ρu    = state.ρu
-    ρe    = state.ρe
-    coord = aux.coord
-    Φ     = aux.orientation.Φ
-    e     = ρe / ρ
-    u     = ρu / ρ
-    e_int = e - u' * u / 2 - Φ
-    T     = air_temperature(e_int)
+    τ_ramp = FT(2 * 86400)
+    ρ      = state.ρ
+    ρu     = state.ρu
+    ρe     = state.ρe
+    coord  = aux.coord
+    Φ      = aux.orientation.Φ
+    e      = ρe / ρ
+    u      = ρu / ρ
+    e_int  = e - u' * u / 2 - Φ
+    T      = air_temperature(e_int)
 
     # Held-Suarez constants
     k_a       = FT(1 / (40 * day))
@@ -128,9 +132,12 @@ function held_suarez_forcing!(bl, source, state, diffusive, aux, t::Real)
     k_T           = k_a + (k_s - k_a) * height_factor * cos(φ) ^ 4
     k_v           = k_f * height_factor
 
+    # Ramp up the forcing over time
+    # rampup = FT((1 - exp(-2 * t / τ_ramp)) / (1 + exp(-2 * t / τ_ramp)))
+
     # TODO: bottom drag should only be applied in tangential direction
-    source.ρu += -k_v * projection_tangential(bl.orientation, aux, ρu)
-    source.ρe += -k_T * ρ * cv_d * (T - T_equil)
+    source.ρu -= k_v * projection_tangential(bl.orientation, aux, ρu)
+    source.ρe -= k_T * ρ * cv_d * (T - T_equil)
 end
 
 function main()
@@ -170,7 +177,7 @@ function main()
     # Set up user-defined callbacks
     # TODO: This callback needs to live somewhere else 
     filterorder = 14
-    filter = ExponentialFilter(solver_config.dg.grid, 0, filterorder)
+    filter = ExponentialFilter(solver_config.dg.grid, 0, filterorder)#, HorizontalDirection())
     cbfilter = GenericCallbacks.EveryXSimulationSteps(1) do
         Filters.apply!(
           solver_config.Q, 
