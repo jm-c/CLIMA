@@ -63,8 +63,8 @@ function hyperdiffusive!(h::HorizontalHyperDiffusion, hyperdiffusive::Vars, hype
   τ_timescale = h.τ_timescale
 
   ν₄ = (aux.hyperdiffusion.Δ/2)^4 / 2 / τ_timescale
-  hyperdiffusive.hyperdiffusion.ν∇³u_horz = ν₄ * ∇Δu_horz
-  hyperdiffusive.hyperdiffusion.ν∇³h_tot  = ν₄ * ∇Δh_tot
+  hyperdiffusive.hyperdiffusion.ν∇³u_horz = state.ρ * ν₄ * ∇Δu_horz
+  hyperdiffusive.hyperdiffusion.ν∇³h_tot  = state.ρ * ν₄ * ∇Δh_tot
 end
 
 function flux_nondiffusive!(h::HorizontalHyperDiffusion, flux::Grad, state::Vars, aux::Vars, t::Real) end

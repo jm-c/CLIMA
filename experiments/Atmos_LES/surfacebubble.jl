@@ -170,7 +170,7 @@ function config_surfacebubble(FT, N, resolution, xmax, ymax, zmax)
 
   model = AtmosModel{FT}(AtmosLESConfiguration;
                          turbulence=SmagorinskyLilly{FT}(C_smag),
-                         hyperdiffusion=HorizontalHyperDiffusion{FT}(60),
+                         hyperdiffusion=HorizontalHyperDiffusion{FT}(100),
                          source=(Gravity(),),
                          boundarycondition=bc,
                          moisture=EquilMoist{FT}(),
@@ -189,7 +189,7 @@ function main()
   # DG polynomial order
   N = 4
   # Domain resolution and size
-  Δh = FT(100)
+  Δh = FT(50)
   Δv = FT(50)
   resolution = (Δh, Δh, Δv)
   xmax = 2000
