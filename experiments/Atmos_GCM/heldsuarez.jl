@@ -171,7 +171,8 @@ function main()
       driver_config,
       ode_solver_type=ode_solver_type,
       Courant_number=0.05,
-      forcecpu=true
+      forcecpu=true,
+      diffusion_direction=HorizontalDirection()
     )
 
     # Set up user-defined callbacks
