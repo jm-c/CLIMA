@@ -458,10 +458,6 @@ function facerhs!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder}, ::direction,
         @unroll for s = 1:nhyperviscstate
           l_Qhypervisc⁻[s] = Qhypervisc_grad[vid⁻, s, e⁻]
         end
-        
-        @unroll for s = 1:nhyperviscstate
-          l_Qhypervisc⁻[s] = Qhypervisc_grad[vid⁻, s, e⁻]
-        end
 
         @unroll for s = 1:nauxstate
           l_aux⁻[s] = auxstate[vid⁻, s, e⁻]
@@ -480,10 +476,6 @@ function facerhs!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder}, ::direction,
           l_Qhypervisc⁺[s] = Qhypervisc_grad[vid⁺, s, e⁺]
         end
         
-        @unroll for s = 1:nhyperviscstate
-          l_Qhypervisc⁺[s] = Qhypervisc_grad[vid⁺, s, e⁺]
-        end
-
         @unroll for s = 1:nauxstate
           l_aux⁺diff[s] = l_aux⁺nondiff[s] = auxstate[vid⁺, s, e⁺]
         end
