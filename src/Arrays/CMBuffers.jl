@@ -98,9 +98,9 @@ function prepare_stage!(buf::CMBuffer)
     if buf.transfer === nothing
         # nothing to do here
     else
-        # This could be `async=true`, since we will launch
+        # This is `async=true`, since we will launch
         # a kernel on the same stream afterwards.
-        copybuffer!(buf.stage, buf.transfer, async=false)
+        copybuffer!(buf.stage, buf.transfer, async=true)
     end
 end
 
