@@ -458,6 +458,10 @@ function facerhs!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder}, ::direction,
         @unroll for s = 1:nhyperviscstate
           l_Qhypervisc⁻[s] = Qhypervisc_grad[vid⁻, s, e⁻]
         end
+        
+        @unroll for s = 1:nhyperviscstate
+          l_Qhypervisc⁻[s] = Qhypervisc_grad[vid⁻, s, e⁻]
+        end
 
         @unroll for s = 1:nauxstate
           l_aux⁻[s] = auxstate[vid⁻, s, e⁻]
@@ -470,6 +474,10 @@ function facerhs!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder}, ::direction,
 
         @unroll for s = 1:nviscstate
           l_Qvisc⁺[s] = Qvisc[vid⁺, s, e⁺]
+        end
+        
+        @unroll for s = 1:nhyperviscstate
+          l_Qhypervisc⁺[s] = Qhypervisc_grad[vid⁺, s, e⁺]
         end
         
         @unroll for s = 1:nhyperviscstate
@@ -1512,21 +1520,21 @@ function facedivgrad!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder},
         sM, vMI = sgeo[_sM, n, f, e], sgeo[_vMI, n, f, e]
         idM, idP = vmapM[n, f, e], vmapP[n, f, e]
 
-        eM, eP = e, ((idP - 1) ÷ Np) + 1
-        vidM, vidP = ((idM - 1) % Np) + 1,  ((idP - 1) % Np) + 1
+        e⁻, e⁺ = e, ((idP - 1) ÷ Np) + 1
+        vid⁻, vid⁺ = ((idM - 1) % Np) + 1,  ((idP - 1) % Np) + 1
 
         # Load minus side data
         @unroll for s = 1:ngradlapstate
-          l_gradM[1, s] = Qhypervisc_grad[vidM, 3(s - 1) + 1, eM]
-          l_gradM[2, s] = Qhypervisc_grad[vidM, 3(s - 1) + 2, eM]
-          l_gradM[3, s] = Qhypervisc_grad[vidM, 3(s - 1) + 3, eM]
+          l_gradM[1, s] = Qhypervisc_grad[vid⁻, 3(s - 1) + 1, e⁻]
+          l_gradM[2, s] = Qhypervisc_grad[vid⁻, 3(s - 1) + 2, e⁻]
+          l_gradM[3, s] = Qhypervisc_grad[vid⁻, 3(s - 1) + 3, e⁻]
         end
 
         # Load plus side data
         @unroll for s = 1:ngradlapstate
-          l_gradP[1, s] = Qhypervisc_grad[vidP, 3(s - 1) + 1, eP]
-          l_gradP[2, s] = Qhypervisc_grad[vidP, 3(s - 1) + 2, eP]
-          l_gradP[3, s] = Qhypervisc_grad[vidP, 3(s - 1) + 3, eP]
+          l_gradP[1, s] = Qhypervisc_grad[vid⁺, 3(s - 1) + 1, e⁺]
+          l_gradP[2, s] = Qhypervisc_grad[vid⁺, 3(s - 1) + 2, e⁺]
+          l_gradP[3, s] = Qhypervisc_grad[vid⁺, 3(s - 1) + 3, e⁺]
         end
 
         bctype = elemtobndy[f, e]
@@ -1546,7 +1554,7 @@ function facedivgrad!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder},
         end
 
         @unroll for s = 1:ngradlapstate
-          Qhypervisc_div[vidM, s, eM] += vMI * sM * l_div[s]
+          Qhypervisc_div[vid⁻, s, e⁻] += vMI * sM * l_div[s]
         end
       end
       # Need to wait after even faces to avoid race conditions
@@ -1838,33 +1846,33 @@ function facehyperviscterms!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder},
         sM, vMI = sgeo[_sM, n, f, e], sgeo[_vMI, n, f, e]
         idM, idP = vmapM[n, f, e], vmapP[n, f, e]
 
-        eM, eP = e, ((idP - 1) ÷ Np) + 1
-        vidM, vidP = ((idM - 1) % Np) + 1,  ((idP - 1) % Np) + 1
+        e⁻, e⁺ = e, ((idP - 1) ÷ Np) + 1
+        vid⁻, vid⁺ = ((idM - 1) % Np) + 1,  ((idP - 1) % Np) + 1
 
         # Load minus side data
         @unroll for s = 1:ngradtransformstate
-          l_QM[s] = Q[vidM, s, eM]
+          l_Q⁻[s] = Q[vid⁻, s, e⁻]
         end
         
         @unroll for s = 1:nauxstate
-          l_auxM[s] = auxstate[vidM, s, eM]
+          l_aux⁻[s] = auxstate[vid⁻, s, e⁻]
         end
 
         @unroll for s = 1:ngradlapstate
-          l_lapM[s] = Qhypervisc_div[vidM, s, eM]
+          l_lap⁻[s] = Qhypervisc_div[vid⁻, s, e⁻]
         end
 
         # Load plus side data
         @unroll for s = 1:ngradtransformstate
-          l_QP[s] = Q[vidP, s, eP]
+          l_Q⁺[s] = Q[vid⁺, s, e⁺]
         end
         
         @unroll for s = 1:nauxstate
-          l_auxP[s] = auxstate[vidP, s, eP]
+          l_aux⁺[s] = auxstate[vid⁺, s, e⁺]
         end
 
         @unroll for s = 1:ngradlapstate
-          l_lapP[s] = Qhypervisc_div[vidP, s, eP]
+          l_lap⁺[s] = Qhypervisc_div[vid⁺, s, e⁺]
         end
 
         bctype = elemtobndy[f, e]
@@ -1872,28 +1880,28 @@ function facehyperviscterms!(bl::BalanceLaw, ::Val{dim}, ::Val{polyorder},
           numerical_flux_hyperdiffusive!(hyperviscnumflux, bl,
                                          Vars{vars_hyperdiffusive(bl, FT)}(l_Qhypervisc),
                                          nM,
-                                         Vars{vars_gradient_laplacian(bl, FT)}(l_lapM),
-                                         Vars{vars_state(bl, FT)}(l_QM),
-                                         Vars{vars_aux(bl, FT)}(l_auxM),
-                                         Vars{vars_gradient_laplacian(bl, FT)}(l_lapP),
-                                         Vars{vars_state(bl, FT)}(l_QP),
-                                         Vars{vars_aux(bl, FT)}(l_auxP),
+                                         Vars{vars_gradient_laplacian(bl, FT)}(l_lap⁻),
+                                         Vars{vars_state(bl, FT)}(l_Q⁻),
+                                         Vars{vars_aux(bl, FT)}(l_aux⁻),
+                                         Vars{vars_gradient_laplacian(bl, FT)}(l_lap⁺),
+                                         Vars{vars_state(bl, FT)}(l_Q⁺),
+                                         Vars{vars_aux(bl, FT)}(l_aux⁺),
                                          t)
         else
           numerical_boundary_flux_hyperdiffusive!(hyperviscnumflux, bl,
                                                   Vars{vars_hyperdiffusive(bl, FT)}(l_Qhypervisc),
                                                   nM,
-                                                  Vars{vars_gradient_laplacian(bl, FT)}(l_lapM),
-                                                  Vars{vars_state(bl, FT)}(l_QM),
-                                                  Vars{vars_aux(bl, FT)}(l_auxM),
-                                                  Vars{vars_gradient_laplacian(bl, FT)}(l_lapP),
-                                                  Vars{vars_state(bl, FT)}(l_QP),
-                                                  Vars{vars_aux(bl, FT)}(l_auxP),
+                                                  Vars{vars_gradient_laplacian(bl, FT)}(l_lap⁻),
+                                                  Vars{vars_state(bl, FT)}(l_Q⁻),
+                                                  Vars{vars_aux(bl, FT)}(l_aux⁻),
+                                                  Vars{vars_gradient_laplacian(bl, FT)}(l_lap⁺),
+                                                  Vars{vars_state(bl, FT)}(l_Q⁺),
+                                                  Vars{vars_aux(bl, FT)}(l_aux⁺),
                                                   bctype, t)
         end
         
         @unroll for s = 1:nhyperviscstate
-          Qhypervisc_grad[vidM, s, eM] += vMI * sM * l_Qhypervisc[s]
+          Qhypervisc_grad[vid⁻, s, e⁻] += vMI * sM * l_Qhypervisc[s]
         end
       end
       # Need to wait after even faces to avoid race conditions
