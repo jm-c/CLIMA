@@ -214,7 +214,8 @@ function setup_solver(t0::FT, timeend::FT,
                       ode_solver_type=nothing,
                       ode_dt=nothing,
                       modeldata=nothing,
-                      Courant_number=0.4
+                      Courant_number=0.4,
+                      diffusion_direction=EveryDirection()
                      ) where {FT<:AbstractFloat}
     @tic setup_solver
 
@@ -226,7 +227,7 @@ function setup_solver(t0::FT, timeend::FT,
 
     # create DG model, initialize ODE state
     dg = DGModel(bl, grid, numfluxnondiff, numfluxdiff, gradnumflux,
-                 modeldata=modeldata)
+                 modeldata=modeldata, diffusion_direction=diffusion_direction)
     @info @sprintf("Initializing %s", driver_config.name)
     Q = init_ode_state(dg, FT(0), init_args...; forcecpu=forcecpu)
 
