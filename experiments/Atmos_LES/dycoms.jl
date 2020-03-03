@@ -388,27 +388,30 @@ function main()
         nothing
     end
 
-    cbcfl = GenericCallbacks.EveryXSimulationSteps(1) do (init=false)
-      CFL_diff = CLIMA.DGmethods.courant(CLIMA.Courant.diffusive_courant,
-                                         solver_config)
-      CFL_nondiff = CLIMA.DGmethods.courant(CLIMA.Courant.nondiffusive_courant,
-                                            solver_config)
-      CFL_advect = CLIMA.DGmethods.courant(CLIMA.Courant.advective_courant,
+    function cbinfo(init)
+      if !init
+        CFL_diff = CLIMA.DGmethods.courant(CLIMA.Courant.diffusive_courant,
                                            solver_config)
-      @info @sprintf("""
-                     CFL:
+        CFL_nondiff = CLIMA.DGmethods.courant(CLIMA.Courant.nondiffusive_courant,
+                                              solver_config)
+        CFL_advect = CLIMA.DGmethods.courant(CLIMA.Courant.advective_courant,
+                                             solver_config)
+        @info @sprintf("""
+                       CFL:
                        diff:    %f
                        nondiff: %f
                        advect:  %f
                        """, CFL_diff,
                        CFL_nondiff,
                        CFL_advect)
-        nothing
+      end
+      nothing
     end
       
     result = CLIMA.invoke!(solver_config;
-                          user_callbacks=(cbtmarfilter,cbcfl),
-                          check_euclidean_distance=true)
+                           user_callbacks=(cbtmarfilter,),
+                           check_euclidean_distance=true,
+                           user_info_callback=cbinfo)
 end
 
 main()
