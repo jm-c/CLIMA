@@ -110,31 +110,27 @@ function atmos_boundary_flux_diffusive!(nf::CentralNumericalFluxDiffusive,
     
     u₀ = state⁻.ρu / state⁻.ρ
     windspeed₀ = norm(u₀)
-    
     _, τ⁻ = turbulence_tensors(atmos.turbulence, state⁻, diff⁻, aux⁻, t)
-    
-    u_τ = bc.u_τ
+    u_τ = bc.u_τ # Constant value for friction-velocity u_star == u_τ
     
     @inbounds begin
-      τ13⁺ = - u_τ^2 * windspeed₀[1] / norm(windspeed₀)
-      τ23⁺ = - u_τ^2 * windspeed₀[2] / norm(windspeed₀)
+      τ13⁺ = - u_τ^2 * windspeed₀[1] / norm(windspeed₀) # ⟨u′w′⟩ 
+      τ23⁺ = - u_τ^2 * windspeed₀[2] / norm(windspeed₀) # ⟨v′w′⟩
       τ21⁺ = τ⁻[2,1]
     end
     
-    FT = eltype(state⁺)
+    # Momentum boundary condition
     τ⁺ = SHermitianCompact{3, FT, 6}(SVector(0   ,
                                              τ21⁺, τ13⁺,
                                              0   , τ23⁺, 0))
-    
+    # Moisture boundary condition
     d_q_tot⁺  = SVector(0, 
                         0, 
                         state⁺.ρ * bc.w′qt′)
-    
-
+    # Heat flux boundary condition
     d_h_tot⁺ = SVector(0, 
                        0, 
                        (bc.w′θ′ * cp_m(TS) * state⁺.ρ + state⁺.ρ * bc.w′qt′ * LH_v0))
-  
     # Set the flux using the now defined plus-side data
     flux_diffusive!(atmos, F, state⁺, τ⁺, d_h_tot⁺)
     flux_diffusive!(atmos.moisture, F, state⁺, d_q_tot⁺)
@@ -279,14 +275,29 @@ end
 """
   Initial Condition for BOMEX LES
 """
+#TODO merge with new data_config feature for atmosmodel to avoid global constants
 seed = MersenneTwister(0)
 function init_bomex!(bl, state, aux, (x,y,z), t)
-  
-  # This experiment runs in a box-configuration (LES)
+  # This experiment runs in a (LES-Configuration)
   # x,y,z imply eastward, northward and altitude in `[m]`
+  
+  # Problem floating point precision
   FT      = eltype(state)
   
-  pg::FT  = MSLP
+  # Ground pressure
+  P_sfc::FT  = MSLP
+  
+  # Ground moisture
+  qg::FT= 17e-3
+  # Get Phase Partition
+  q_pt_sfc= PhasePartition(qg)
+  # Moist gas constant
+  Rm_sfc  = FT(gas_constant_air(q_pt_sfc))
+  θ_liq_sfc = FT(298.7)
+  # Ground air temperature
+  T_sfc   = air_temperature_from_liquid_ice_pottemp_given_pressure(θ_liq_sfc, P_sfc, q_pt_sfc)
+  
+  # Initialise speeds [u = Eastward, v = Northward, w = Vertical]
   u::FT   = 0
   v::FT   = 0
   w::FT   = 0 
@@ -296,22 +307,25 @@ function init_bomex!(bl, state, aux, (x,y,z), t)
   zl2::FT = 1480
   zl3::FT = 2000
   zl4::FT = 3000
+
   # Assign piecewise quantities to θ_liq and q_tot 
-  
   θ_liq::FT = 0 
   q_tot::FT = 0 
 
   # Piecewise functions for potential temperature and total moisture
   if FT(0) <= z <= zl1
+    # Well mixed layer
     θ_liq = 298.7
     q_tot = 17.0 + (z/zl1)*(16.3-17.0)
   elseif z > zl1 && z <= zl2
+    # Conditionally unstable layer
     θ_liq = 298.7 + (z-zl1) * (302.4-298.7)/(zl2-zl1)
     q_tot = 16.3 + (z-zl1) * (10.7-16.3)/(zl2-zl1)
   elseif z > zl2 && z <= zl3
+    # Absolutely stable inversion
     θ_liq = 302.4 + (z-zl2) * (308.2-302.4)/(zl3-zl2)
     q_tot = 10.7 + (z-zl2) * (4.2-10.7)/(zl3-zl2)
-  else 
+  else
     θ_liq = 308.2 + (z-zl3) * (311.85-308.2)/(zl4-zl3)
     q_tot = 4.2 + (z-zl3) * (3.0-4.2)/(zl4-zl3)
   end
@@ -324,35 +338,34 @@ function init_bomex!(bl, state, aux, (x,y,z), t)
     u = -8.75 + (z - zlv) * (-4.61 + 8.75)/(zl4 - zlv)
   end
   
-  q_tot *= 1e-3 # Convert total specific humidity to kg/kg
-  
-  Γ = grav / cv_d
-  T_min = FT(255)
-  T_surface = FT(299)
+  # Convert total specific humidity to kg/kg
+  q_tot /= 1000 
+  # Scale height based on surface parameters
+  H     = Rm_sfc * T_sfc / grav
+  # Pressure based on scale height
+  P     = P_sfc * exp(-z / H)   
 
-  T = max(T_surface - Γ*z, T_min)
-  p = MSLP * (T/T_surface)^(grav/(R_d*Γ))
-  
-  if T == T_min
-    z_top = (T_surface - T_min) / Γ
-    H_min = R_d * T_min / grav
-    p *= exp(-(z-z_top)/H_min)
-  end
+  # Establish thermodynamic state from these vars
+  TS = LiquidIcePotTempSHumEquil_given_pressure(θ_liq,q_tot,P)
+  T = air_temperature(TS)
+  ρ = air_density(TS)
+  q_pt = PhasePartition(TS)
 
-  ρ = air_density(T,p,PhasePartition(q_tot))
-  q_pt = PhasePartition(q_tot)
- 
-  U           = ρ * u
-  V           = ρ * v
-  W           = ρ * w
+  # Compute momentum contributions
+  ρu          = ρ * u
+  ρv          = ρ * v
+  ρw          = ρ * w
   
+  # Compute energy contributions
   e_kin       = FT(1//2) * (u^2 + v^2 + w^2)
   e_pot       = FT(grav) * z
   ρe_tot      = ρ * total_energy(e_kin, e_pot, T, q_pt)
+
+  # Assign initial conditions for prognostic state variables
   state.ρ     = ρ
-  state.ρu    = SVector(U, V, W) 
+  state.ρu    = SVector(ρu, ρv, ρw) 
   state.ρe    = ρe_tot + rand(seed)*ρe_tot/100
-  state.moisture.ρq_tot = ρ * q_tot
+  state.moisture.ρq_tot = ρ * q_tot + rand(seed)*ρq_tot/100
 end
 
 function config_bomex(FT, N, resolution, xmax, ymax, zmax)
@@ -382,21 +395,27 @@ function config_bomex(FT, N, resolution, xmax, ymax, zmax)
   w_sub  = FT(-0.65e-2)     # Subsidence velocity peak value
 
   f_coriolis = FT(0.376e-4) # Coriolis parameter
+  
 
+  # Assemble source components
   source = (Gravity(),
             BomexTendencies{FT}(∂qt∂t, zl_qt, zh_qt, Qᵣ, zl_sub),
             BomexSponge{FT}(zmax, z_sponge, α_max, γ, u_relax, u_slope, v_relax),
             BomexLargeScaleSubsidence{FT}(w_sub, zl_sub, zh_sub),
             BomexGeostrophic{FT}(f_coriolis, u_relax, u_slope, v_relax))
 
+  # Assemble timestepper components
   ode_solver_type = CLIMA.DefaultSolverType()
+
+  # Assemble model components
   model = AtmosModel{FT}(AtmosLESConfiguration;
                          turbulence        = SmagorinskyLilly{FT}(C_smag),
-                         moisture          = EquilMoist(20),
+                         moisture          = EquilMoist{FT}(),
                          source            = source,
                          boundarycondition = bc,
                          init_state        = ics)
-
+  
+  # Assemble configuration
   config = CLIMA.Atmos_LES_Configuration("BOMEX", N, resolution,
                                          xmax, ymax, zmax,
                                          init_bomex!,
@@ -417,7 +436,8 @@ function main()
   Δv = FT(40)
 
   resolution = (Δh, Δh, Δv)
-
+  
+  # Prescribe domain parameters
   xmax = 1000
   ymax = 1000
   zmax = 3000
