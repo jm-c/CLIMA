@@ -90,11 +90,12 @@ function Atmos_LES_Configuration(
 
     @info @sprintf("""Establishing Atmos LES configuration for %s
                    precision        = %s
+                   array type       = %s
                    polynomial order = %d
                    grid             = %dx%dx%d
                    resolution       = %dx%dx%d
                    MPI ranks        = %d""",
-                   name, FT, N,
+                   name, FT, array_type, N,
                    xmax, ymax, zmax,
                    Δx, Δy, Δz,
                    MPI.Comm_size(mpicomm))
@@ -135,12 +136,13 @@ function Atmos_GCM_Configuration(
     ) where {FT<:AbstractFloat}
     @info @sprintf("""Establishing Atmos GCM configuration for %s
                    precision        = %s
+                   array type       = %s
                    polynomial order = %d
                    #horiz elems     = %d
                    #vert_elems      = %d
                    domain height    = %.2e
                    MPI ranks        = %d""",
-                   name, FT, N,
+                   name, FT, array_type, N,
                    nelem_horz, nelem_vert, domain_height,
                    MPI.Comm_size(mpicomm))
 
