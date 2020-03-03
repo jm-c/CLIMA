@@ -54,7 +54,7 @@ $(DocStringExtensions.FIELDS)
 """
 struct BOMEX_BC{FT} <: BoundaryCondition
   "Friction velocity"
-  u_τ::FT  
+  u_star::FT  
   "Sensible Heat Flux"
   w′θ′::FT
   "Latent Heat Flux"
@@ -111,11 +111,11 @@ function atmos_boundary_flux_diffusive!(nf::CentralNumericalFluxDiffusive,
     u₀ = state⁻.ρu / state⁻.ρ
     windspeed₀ = norm(u₀)
     _, τ⁻ = turbulence_tensors(atmos.turbulence, state⁻, diff⁻, aux⁻, t)
-    u_τ = bc.u_τ # Constant value for friction-velocity u_star == u_τ
+    u_star = bc.u_star # Constant value for friction-velocity u_star == u_star
     
     @inbounds begin
-      τ13⁺ = - u_τ^2 * windspeed₀[1] / norm(windspeed₀) # ⟨u′w′⟩ 
-      τ23⁺ = - u_τ^2 * windspeed₀[2] / norm(windspeed₀) # ⟨v′w′⟩
+      τ13⁺ = - u_star^2 * windspeed₀[1] / norm(windspeed₀) # ⟨u′w′⟩ 
+      τ23⁺ = - u_star^2 * windspeed₀[2] / norm(windspeed₀) # ⟨v′w′⟩
       τ21⁺ = τ⁻[2,1]
     end
     
@@ -233,9 +233,10 @@ function atmos_source!(s::BomexTendencies, atmos::AtmosModel, source::Vars, stat
     source.moisture.ρq_tot += ρ * (∂qt∂t - ∂qt∂t * (z-z_l) / (z_h-z_l))
   end
   Qᵣ    = s.Qᵣ
-  TS    = thermo_state(atmos.moisture, atmos.orientation, state, aux)
-  q_pt  = PhasePartition(TS)
-  Qₑ    = internal_energy(T_0-Qᵣ, q_pt)
+  #TS    = thermo_state(atmos.moisture, atmos.orientation, state, aux)
+  #q_pt  = PhasePartition(TS)
+  #Qₑ    = internal_energy(T_0-Qᵣ, q_pt)
+  Qₑ = FT(1/86400)
   if z <= FT(s.zl_sub)
     source.ρe += ρ * Qₑ
   else
@@ -278,35 +279,36 @@ end
 #TODO merge with new data_config feature for atmosmodel to avoid global constants
 seed = MersenneTwister(0)
 function init_bomex!(bl, state, aux, (x,y,z), t)
-  # This experiment runs in a (LES-Configuration)
+  # This experiment runs the BOMEX LES Configuration
+  # (Shallow cumulus cloud regime)
   # x,y,z imply eastward, northward and altitude in `[m]`
   
   # Problem floating point precision
-  FT      = eltype(state)
+  FT            = eltype(state)
   
   # Ground pressure
   P_sfc::FT  = MSLP
   
   # Ground moisture
-  qg::FT= 17e-3
+  qg::FT    = 17e-3
   # Get Phase Partition
-  q_pt_sfc= PhasePartition(qg)
+  q_pt_sfc  = PhasePartition(qg)
   # Moist gas constant
-  Rm_sfc  = FT(gas_constant_air(q_pt_sfc))
+  Rm_sfc    = FT(gas_constant_air(q_pt_sfc))
   θ_liq_sfc = FT(298.7)
   # Ground air temperature
-  T_sfc   = air_temperature_from_liquid_ice_pottemp_given_pressure(θ_liq_sfc, P_sfc, q_pt_sfc)
+  T_sfc     = air_temperature_from_liquid_ice_pottemp_given_pressure(θ_liq_sfc, P_sfc, q_pt_sfc)
   
   # Initialise speeds [u = Eastward, v = Northward, w = Vertical]
-  u::FT   = 0
-  v::FT   = 0
-  w::FT   = 0 
+  u::FT     = 0
+  v::FT     = 0
+  w::FT     = 0 
   
   # Prescribed altitudes for piece-wise profile construction
-  zl1::FT = 520
-  zl2::FT = 1480
-  zl3::FT = 2000
-  zl4::FT = 3000
+  zl1::FT   = 520
+  zl2::FT   = 1480
+  zl3::FT   = 2000
+  zl4::FT   = 3000
 
   # Assign piecewise quantities to θ_liq and q_tot 
   θ_liq::FT = 0 
@@ -345,8 +347,8 @@ function init_bomex!(bl, state, aux, (x,y,z), t)
   # Pressure based on scale height
   P     = P_sfc * exp(-z / H)   
 
-  # Establish thermodynamic state from these vars
-  TS = LiquidIcePotTempSHumEquil_given_pressure(θ_liq,q_tot,P)
+  # Establish thermodynamic state and moist phase partitioning
+  TS = LiquidIcePotTempSHumEquil_given_pressure(θ_liq, P, q_tot)
   T = air_temperature(TS)
   ρ = air_density(TS)
   q_pt = PhasePartition(TS)
@@ -365,18 +367,18 @@ function init_bomex!(bl, state, aux, (x,y,z), t)
   state.ρ     = ρ
   state.ρu    = SVector(ρu, ρv, ρw) 
   state.ρe    = ρe_tot + rand(seed)*ρe_tot/100
-  state.moisture.ρq_tot = ρ * q_tot + rand(seed)*ρq_tot/100
+  state.moisture.ρq_tot = ρ * q_tot + rand(seed)*ρ*q_tot/100
 end
 
 function config_bomex(FT, N, resolution, xmax, ymax, zmax)
   
   C_smag = FT(0.23)     # Smagorinsky coefficient
-  u_τ    = FT(0.28)     # Friction velocity
+  u_star = FT(0.28)     # Friction velocity
   w′θ′   = FT(8e-3)     # Sensible heat flux
   w′qt′  = FT(5.2e-5)   # Latent heat flux
 
-  bc = BOMEX_BC{FT}(u_τ, w′θ′, w′qt′) # Boundary conditions
-  ics = init_bomex!                   # Initial conditions 
+  bc = BOMEX_BC{FT}(u_star, w′θ′, w′qt′) # Boundary conditions
+  ics = init_bomex!                      # Initial conditions 
   
   ∂qt∂t = FT(-1.2e-8)       # Moisture tendency (forcing)
   zl_qt = FT(300)           # Low altitude limit for piecewise function (moisture)
@@ -398,11 +400,13 @@ function config_bomex(FT, N, resolution, xmax, ymax, zmax)
   
 
   # Assemble source components
-  source = (Gravity(),
+  source = (
+            Gravity(),
             BomexTendencies{FT}(∂qt∂t, zl_qt, zh_qt, Qᵣ, zl_sub),
             BomexSponge{FT}(zmax, z_sponge, α_max, γ, u_relax, u_slope, v_relax),
             BomexLargeScaleSubsidence{FT}(w_sub, zl_sub, zh_sub),
-            BomexGeostrophic{FT}(f_coriolis, u_relax, u_slope, v_relax))
+            BomexGeostrophic{FT}(f_coriolis, u_relax, u_slope, v_relax)
+           )
 
   # Assemble timestepper components
   ode_solver_type = CLIMA.DefaultSolverType()
@@ -444,7 +448,7 @@ function main()
 
   t0 = FT(0)
   timeend = FT(3600*6)
-  CFLmax  = FT(0.000001)
+  CFLmax  = FT(0.01)
 
   driver_config = config_bomex(FT, N, resolution, xmax, ymax, zmax)
   solver_config = CLIMA.setup_solver(t0, timeend, driver_config, forcecpu=true, Courant_number=CFLmax)
