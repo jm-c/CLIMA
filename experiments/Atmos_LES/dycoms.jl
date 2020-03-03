@@ -377,7 +377,7 @@ function main()
     CFL = FT(2)
 
     t0 = FT(0)
-    timeend = FT(100)
+    timeend = FT(60 * 60 * 24)
 
     driver_config = config_dycoms(FT, N, resolution, xmax, ymax, zmax)
     solver_config = CLIMA.setup_solver(t0, timeend, driver_config, forcecpu=true,
