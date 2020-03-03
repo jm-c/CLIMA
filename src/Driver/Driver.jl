@@ -14,6 +14,7 @@ using ..Diagnostics
 using ..GenericCallbacks
 using ..ODESolvers
 using ..Mesh.Grids: EveryDirection, VerticalDirection, HorizontalDirection
+using ..Mesh.Interpolation
 using ..MoistThermodynamics
 using ..MPIStateArrays
 using ..DGmethods: vars_state, vars_aux, update_aux!, update_aux_diffusive!
@@ -100,14 +101,14 @@ function parse_commandline()
         "--diagnostics-interval"
             help = "interval in simulation steps for gathering diagnostics"
             arg_type = Int
-            default = 10000
+            default = 1
         "--enable-vtk"
             help = "output VTK to <output-dir> every <vtk-interval> simulation steps"
             action = :store_true
         "--vtk-interval"
             help = "interval in simulation steps for VTK output"
             arg_type = Int
-            default = 10000
+            default = 4
         "--log-level"
             help = "set the log level to one of debug/info/warn/error"
             arg_type = String
@@ -120,6 +121,7 @@ function parse_commandline()
             help = "enable integration testing"
             action = :store_true
     end
+
 
     return parse_args(s)
 end
@@ -214,7 +216,8 @@ function setup_solver(t0::FT, timeend::FT,
                       ode_solver_type=nothing,
                       ode_dt=nothing,
                       modeldata=nothing,
-                      Courant_number=0.4
+                      Courant_number=0.4,
+                      diffdir=EveryDirection(),
                      ) where {FT<:AbstractFloat}
     @tic setup_solver
 
@@ -226,7 +229,8 @@ function setup_solver(t0::FT, timeend::FT,
 
     # create DG model, initialize ODE state
     dg = DGModel(bl, grid, numfluxnondiff, numfluxdiff, gradnumflux,
-                 modeldata=modeldata)
+                 modeldata=modeldata,
+                 diffusion_direction=diffdir)
     @info @sprintf("Initializing %s", driver_config.name)
     Q = init_ode_state(dg, FT(0), init_args...; forcecpu=forcecpu)
 
@@ -366,6 +370,45 @@ function invoke!(solver_config::SolverConfiguration;
         end
         callbacks = (callbacks..., cbvtk)
     end
+
+    step = [0]
+    mkpath(joinpath(Settings.output_dir, "nc"))
+    cbnc = GenericCallbacks.EveryXSimulationSteps(1) do (init=false) # - roughset
+        domain_height = FT(30e3) # already defined in heldsuarez! - import
+        # these params need to be taken out into the hledsuarez.jl file or Settingas
+        lat_res  = FT( 10.0 ) # 10 degree resolution - roughset
+        long_res = FT( 10.0 ) # 10 degree resolution - roughset
+        nel_vert_grd  = 20 # - roughset
+        DA = array_type()
+        
+        # filename (may also want to take out)
+        nprefix = @sprintf("nc/step%04d.nc", step[1])
+        filename = joinpath(Settings.output_dir, nprefix)
+        varnames = ("ro", "rou", "rov", "row", "roe") # didn't use greek - some non-julia analysis software may struggle?
+        
+        # get dg grid resolution
+        topology = dg.grid.topology
+        nelem_tot = length(topology.elems)
+        numelem_vert = topology.stacksize
+        nhor = trunc(Int64, √( nelem_tot / numelem_vert / 6))
+        nvars = size(Q.data,2)
+        vert_range = grid1d(FT(planet_radius), FT(planet_radius + domain_height), nelem = numelem_vert)
+        rad_res    = FT((vert_range[end] - vert_range[1])/FT(nel_vert_grd)) 
+        
+        # get the z, lat, lon grid
+        intrp_cs = InterpolationCubedSphere(dg.grid, vert_range, nhor, lat_res, long_res, rad_res)
+        iv = DA(Array{FT}(undef, intrp_cs.Npl, nvars))
+        
+        # project state vector onto sphere
+
+        # interpolate and save 
+        interpolate_local!(intrp_cs, Q.data, iv)
+        svi = write_interpolated_data(intrp_cs, iv, varnames, filename)
+        step[1] += 1
+       nothing
+     end
+    callbacks = (callbacks..., cbnc)
+
     callbacks = (callbacks..., user_callbacks...)
 
     # initial condition norm

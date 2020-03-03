@@ -15,6 +15,7 @@ using CLIMA.MoistThermodynamics
 using CLIMA.PlanetParameters
 using CLIMA.VariableTemplates
 
+
 # Import directional keywords (CLIMA.Mesh.Grids)
 import CLIMA.Mesh.Grids: VerticalDirection, HorizontalDirection, EveryDirection
 
@@ -144,11 +145,11 @@ function main()
     CLIMA.init()
 
     # Driver configuration parameters
-    FT            = Float32           # floating type precision
+    FT            = Float64           # floating type precision
     poly_order    = 5                 # discontinuous Galerkin polynomial order
-    n_horz        = 5                 # horizontal element number  
-    n_vert        = 5                 # vertical element number
-    days          = 3650              # experiment day number
+    n_horz        = 15                # horizontal element number  
+    n_vert        = 8                 # vertical element number
+    days          = 1/24              # experiment day number
     timestart     = FT(0)             # start time (seconds)
     timeend       = FT(days*24*60*60) # end time (seconds)
     
@@ -171,7 +172,8 @@ function main()
       driver_config,
       ode_solver_type=ode_solver_type,
       Courant_number=0.05,
-      forcecpu=true
+      forcecpu=true,
+      diffdir=EveryDirection()
     )
 
     # Set up user-defined callbacks
