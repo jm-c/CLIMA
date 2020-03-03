@@ -1,9 +1,11 @@
 using Distributions
 using Random
+Random.seed!(777)
 using StaticArrays
 using Test
 using DocStringExtensions
 using LinearAlgebra
+using Printf
 
 using CLIMA
 using CLIMA.Atmos
@@ -356,6 +358,7 @@ end
 
 function main()
     CLIMA.init()
+    CLIMA.Settings.enable_diagnostics = false
 
     FT = Float64
 
@@ -363,27 +366,48 @@ function main()
     N = 4
 
     # Domain resolution and size
-    Δh = FT(40)
-    Δv = FT(20)
+    Δh = FT(35)
+    Δv = FT(10)
     resolution = (Δh, Δh, Δv)
 
-    xmax = 1000
-    ymax = 1000
-    zmax = 2500
+    xmax = 3360
+    ymax = 3360
+    zmax = 2000
+
+    CFL = FT(2)
 
     t0 = FT(0)
     timeend = FT(100)
 
     driver_config = config_dycoms(FT, N, resolution, xmax, ymax, zmax)
-    solver_config = CLIMA.setup_solver(t0, timeend, driver_config, forcecpu=true)
+    solver_config = CLIMA.setup_solver(t0, timeend, driver_config, forcecpu=true,
+                                       Courant_number=CFL)
 
     cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(2) do (init=false)
         Filters.apply!(solver_config.Q, 6, solver_config.dg.grid, TMARFilter())
         nothing
     end
+
+    cbcfl = GenericCallbacks.EveryXSimulationSteps(1) do (init=false)
+      CFL_diff = CLIMA.DGmethods.courant(CLIMA.Courant.diffusive_courant,
+                                         solver_config)
+      CFL_nondiff = CLIMA.DGmethods.courant(CLIMA.Courant.nondiffusive_courant,
+                                            solver_config)
+      CFL_advect = CLIMA.DGmethods.courant(CLIMA.Courant.advective_courant,
+                                           solver_config)
+      @info @sprintf("""
+                     CFL:
+                       diff:    %f
+                       nondiff: %f
+                       advect:  %f
+                       """, CFL_diff,
+                       CFL_nondiff,
+                       CFL_advect)
+        nothing
+    end
       
     result = CLIMA.invoke!(solver_config;
-                          user_callbacks=(cbtmarfilter,),
+                          user_callbacks=(cbtmarfilter,cbcfl),
                           check_euclidean_distance=true)
 end
 

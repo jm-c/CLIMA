@@ -94,14 +94,15 @@ end
 
 function main()
     CLIMA.init()
+    CLIMA.Settings.enable_diagnostics = false
 
     # Working precision
     FT = Float64
     # DG polynomial order
     N = 4
     # Domain resolution and size
-    Δh = FT(50)
-    Δv = FT(50)
+    Δh = FT(50) / 4
+    Δv = FT(50) / 4
     resolution = (Δh, Δh, Δv)
     # Domain extents
     xmax = 2500
@@ -111,20 +112,38 @@ function main()
     t0 = FT(0)
     timeend = FT(1000)
     # Courant number
-    CFL = FT(0.8)
+    CFL = 2.2FT(0.8)
 
     driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
-    solver_config = CLIMA.setup_solver(t0, timeend, driver_config, forcecpu=true, Courant_number=CFL)
+    solver_config = CLIMA.setup_solver(t0, timeend, driver_config,
+                                       forcecpu=true, Courant_number=CFL)
 
     # User defined filter (TMAR positivity preserving filter)
     cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(1) do (init=false)
-        Filters.apply!(solver_config.Q, 6, solver_config.dg.grid, TMARFilter())
+        # Filters.apply!(solver_config.Q, 6, solver_config.dg.grid, TMARFilter())
+        nothing
+    end
+    cbcfl = GenericCallbacks.EveryXSimulationSteps(1) do (init=false)
+      CFL_diff = CLIMA.DGmethods.courant(CLIMA.Courant.diffusive_courant,
+                                         solver_config)
+      CFL_nondiff = CLIMA.DGmethods.courant(CLIMA.Courant.nondiffusive_courant,
+                                            solver_config)
+      CFL_advect = CLIMA.DGmethods.courant(CLIMA.Courant.advective_courant,
+                                           solver_config)
+      @info @sprintf("""
+                     CFL:
+                       diff:    %f
+                       nondiff: %f
+                       advect:  %f
+                       """, CFL_diff,
+                       CFL_nondiff,
+                       CFL_advect)
         nothing
     end
 
     # Invoke solver (calls solve! function for time-integrator)
     result = CLIMA.invoke!(solver_config;
-                          user_callbacks=(cbtmarfilter,),
+                          user_callbacks=(cbtmarfilter,cbcfl),
                           check_euclidean_distance=true)
 
     @test isapprox(result,FT(1); atol=1.5e-3)
