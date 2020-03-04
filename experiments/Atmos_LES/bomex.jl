@@ -92,9 +92,16 @@ function atmos_boundary_flux_diffusive!(nf::CentralNumericalFluxDiffusive,
                                         bctype, t,
                                         state1⁻, diff1⁻, aux1⁻)
   
+  # Floatint point precision
   FT = eltype(state⁺)
+
+  # Establish the thermodynamic state based on the prognostic variable state
   TS = thermo_state(atmos.moisture, atmos.orientation, state⁺, aux⁺)
-  
+
+  # Air temperature given current thermodynamic state
+  temperature = air_temperature(TS)
+
+  # Boundary condition for bottom wall
   if bctype != 1
     atmos_boundary_flux_diffusive!(nf, NoFluxBC(), atmos, F,
                                    state⁺, diff⁺, hyperdiff⁺, aux⁺, n⁻,
@@ -108,8 +115,14 @@ function atmos_boundary_flux_diffusive!(nf::CentralNumericalFluxDiffusive,
                           state⁻, diff⁻, aux⁻,
                           bctype, t)
     
+    # Interior state velocities [u₀]
     u₀ = state⁻.ρu / state⁻.ρ
+
+    # Windspeed at based 
+    # [Impenetrable flow, normal component of velocity is zero, horizontal components may be non-zero]
     windspeed₀ = norm(u₀)
+    
+    # Turbulence tensors in the interior state
     _, τ⁻ = turbulence_tensors(atmos.turbulence, state⁻, diff⁻, aux⁻, t)
     u_star = bc.u_star # Constant value for friction-velocity u_star == u_star
     
@@ -119,25 +132,24 @@ function atmos_boundary_flux_diffusive!(nf::CentralNumericalFluxDiffusive,
       τ21⁺ = τ⁻[2,1]
     end
     
-    # Momentum boundary condition
+    # Momentum boundary condition [This is topography specific #FIXME: Simon's interface will improve this]
     τ⁺ = SHermitianCompact{3, FT, 6}(SVector(0   ,
                                              τ21⁺, τ13⁺,
                                              0   , τ23⁺, 0))
-    # Moisture boundary condition
+    # Moisture boundary condition ⟨w′qt′⟩
     d_q_tot⁺  = SVector(0, 
                         0, 
                         state⁺.ρ * bc.w′qt′)
     # Heat flux boundary condition
     d_h_tot⁺ = SVector(0, 
                        0, 
-                       (bc.w′θ′ * cp_m(TS) * state⁺.ρ + state⁺.ρ * bc.w′qt′ * LH_v0))
+                       (bc.w′θ′ * cp_m(TS) * state⁺.ρ + state⁺.ρ * bc.w′qt′ * latent_heat_vapor(temperature)))
     # Set the flux using the now defined plus-side data
     flux_diffusive!(atmos, F, state⁺, τ⁺, d_h_tot⁺)
     flux_diffusive!(atmos.moisture, F, state⁺, d_q_tot⁺)
   end
 end
 # ------------------------ End Boundary Condition --------------------- # 
-
 
 """
   Bomex Sources
@@ -166,6 +178,7 @@ function atmos_source!(s::BomexGeostrophic, atmos::AtmosModel, source::Vars, sta
   fkvector   = f_coriolis * ẑ
   # Accumulate sources
   source.ρu -= fkvector × (state.ρu .- state.ρ*u_geo)
+  return nothing
 end
 
 struct BomexSponge{FT} <: Source
@@ -203,45 +216,77 @@ function atmos_source!(s::BomexSponge, atmos::AtmosModel, source::Vars, state::V
     β_sponge = α_max * sinpi(r/2)^s.γ
     source.ρu -= β_sponge * (state.ρu .- state.ρ * u_geo)
   end
+  return nothing
 end
 
 struct BomexTendencies{FT} <: Source
- "Advection tendency in total moisture `[s⁻¹]`"
+  "Advection tendency in total moisture `[s⁻¹]`"
   ∂qt∂t::FT
   "Lower extent of piecewise profile `[m]`"
   z_l::FT   
   "Upper extent of piecewise profile `[m]`"
   z_h::FT
   "Cooling rate `[K/s]`"
-  Qᵣ::FT
+  ∂θ∂t::FT
   "Piecewise function limit"
   zl_sub::FT
+  "Piecewise function limit"
+  zh_sub::FT
+  "Subsidence peak velocity"
+  w_sub::FT
 end
 function atmos_source!(s::BomexTendencies, atmos::AtmosModel, source::Vars, state::Vars, diffusive::Vars, aux::Vars, t::Real)
   FT = eltype(state)
-  
-  z_l = s.z_l
-  z_h = s.z_h
-  ∂qt∂t = s.∂qt∂t
-  
   ρ     = state.ρ
   z     = altitude(atmos.orientation,aux)
+  q_tot = state.moisture.ρq_tot / state.ρ
+  TS    = thermo_state(atmos.moisture, atmos.orientation, state, aux)
+  
+  # Contribution from temperature tendency term (prescribed radiative cooling)
+  # and 
+  # Contribution from prescribed drying rate ∂qt∂t
+  z_l = s.z_l
+  z_h = s.z_h
+  
+  # Unwrap moisture tendency from source struct
+  ∂qt∂t = s.∂qt∂t
+  ∂θ∂t  = s.∂θ∂t
+
   # Piecewise profile for advective moisture forcing
+  P     = air_pressure(TS)
+  ∂T∂t  = air_temperature_from_liquid_ice_pottemp_given_pressure(∂θ∂t, P, PhasePartition(q_tot))
+
+  # Thermodynamic state identification
+  q_pt  = PhasePartition(TS)
+  cvm   = cv_m(TS)
+
+  if z <= FT(s.zl_sub)
+    source.ρe += ρ*cvm*∂T∂t + ρ*e_int_v0*∂qt∂t
+  else
+    source.ρe += (ρ*cvm*∂T∂t + ρ*e_int_v0*∂qt∂t)*(z-z_l)/(z_h-z_l)
+  end
+
   if z <= z_l
     source.moisture.ρq_tot += ρ * ∂qt∂t
   else
     source.moisture.ρq_tot += ρ * (∂qt∂t - ∂qt∂t * (z-z_l) / (z_h-z_l))
   end
-  Qᵣ    = s.Qᵣ
-  #TS    = thermo_state(atmos.moisture, atmos.orientation, state, aux)
-  #q_pt  = PhasePartition(TS)
-  #Qₑ    = internal_energy(T_0-Qᵣ, q_pt)
-  Qₑ = FT(1/86400)
-  if z <= FT(s.zl_sub)
-    source.ρe += ρ * Qₑ
+  
+  # Large scale subsidence tendency
+  w_sub = s.w_sub
+  zl_sub = s.zl_sub
+  zh_sub = s.zh_sub
+  wₛ = FT(0)
+  if z <= z_l
+    wₛ = FT(0) + z*(w_sub)/(z_l)
   else
-    source.ρe += ρ * (Qₑ - Qₑ * ((z-z_l) / (z_h-z_l)))
+    wₛ = w_sub - (z - z_l)* (w_sub)/(z_h - z_l)
   end
+  
+  k̂ = vertical_unit_vector(atmos.orientation, aux)
+  source.ρe -= ρ * wₛ * dot(k̂, diffusive.∇h_tot)
+  source.moisture.ρq_tot -= ρ * wₛ * dot(k̂, diffusive.moisture.∇q_tot)
+  return nothing
 end
 
 struct BomexLargeScaleSubsidence{FT} <: Source
@@ -255,22 +300,7 @@ end
 function atmos_source!(s::BomexLargeScaleSubsidence, atmos::AtmosModel, source::Vars, state::Vars, diffusive::Vars, aux::Vars, t::Real)
   FT = eltype(state)
   
-  w_sub = s.w_sub
-  z_l = s.z_l
-  z_h = s.z_h
-  
-  #Set large scale subsidence
-  z = altitude(atmos.orientation,aux)
-  wₛ = FT(0)
-  if z <= z_l
-    wₛ = FT(0) + z*(w_sub)/(z_l)
-  else
-    wₛ = w_sub - (z - z_l)* (w_sub)/(z_h - z_l)
-  end
-  ρ = state.ρ
-  k̂ = vertical_unit_vector(atmos.orientation, aux)
-  source.ρe -= ρ * wₛ * dot(k̂, diffusive.∇h_tot)
-  source.moisture.ρq_tot -= ρ * wₛ * dot(k̂, diffusive.moisture.∇q_tot)
+  return nothing
 end
 
 """
@@ -281,7 +311,7 @@ seed = MersenneTwister(0)
 function init_bomex!(bl, state, aux, (x,y,z), t)
   # This experiment runs the BOMEX LES Configuration
   # (Shallow cumulus cloud regime)
-  # x,y,z imply eastward, northward and altitude in `[m]`
+  # x,y,z imply eastward, northward and altitude coordinates in `[m]`
   
   # Problem floating point precision
   FT            = eltype(state)
@@ -372,18 +402,18 @@ end
 
 function config_bomex(FT, N, resolution, xmax, ymax, zmax)
   
+  ics = init_bomex!     # Initial conditions 
+
   C_smag = FT(0.23)     # Smagorinsky coefficient
   u_star = FT(0.28)     # Friction velocity
   w′θ′   = FT(8e-3)     # Sensible heat flux
   w′qt′  = FT(5.2e-5)   # Latent heat flux
-
   bc = BOMEX_BC{FT}(u_star, w′θ′, w′qt′) # Boundary conditions
-  ics = init_bomex!                      # Initial conditions 
   
-  ∂qt∂t = FT(-1.2e-8)       # Moisture tendency (forcing)
+  ∂qt∂t = FT(-1.2e-8)       # Moisture tendency (energy)
   zl_qt = FT(300)           # Low altitude limit for piecewise function (moisture)
   zh_qt = FT(500)           # High altitude limit for piecewise function (moisture)
-  Qᵣ    = FT(2/86400)       # Temperature tendency (forcing)
+  ∂θ∂t  = FT(-2/86400)      # Potential temperature tendency (energy)
 
   z_sponge = FT(2400)       # Start of sponge layer
   α_max = FT(0.5)           # Strength of sponge layer (timescale)
@@ -398,13 +428,11 @@ function config_bomex(FT, N, resolution, xmax, ymax, zmax)
 
   f_coriolis = FT(0.376e-4) # Coriolis parameter
   
-
   # Assemble source components
   source = (
             Gravity(),
-            BomexTendencies{FT}(∂qt∂t, zl_qt, zh_qt, Qᵣ, zl_sub),
+            BomexTendencies{FT}(∂qt∂t, zl_qt, zh_qt, ∂θ∂t, zl_sub, zh_sub, w_sub),
             BomexSponge{FT}(zmax, z_sponge, α_max, γ, u_relax, u_slope, v_relax),
-            BomexLargeScaleSubsidence{FT}(w_sub, zl_sub, zh_sub),
             BomexGeostrophic{FT}(f_coriolis, u_relax, u_slope, v_relax)
            )
 
@@ -414,7 +442,8 @@ function config_bomex(FT, N, resolution, xmax, ymax, zmax)
   # Assemble model components
   model = AtmosModel{FT}(AtmosLESConfiguration;
                          turbulence        = SmagorinskyLilly{FT}(C_smag),
-                         moisture          = EquilMoist{FT}(),
+                         moisture          = EquilMoist{FT}(;maxiter=15,
+                                                             tolerance=0.2),
                          source            = source,
                          boundarycondition = bc,
                          init_state        = ics)
