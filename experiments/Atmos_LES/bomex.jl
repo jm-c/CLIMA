@@ -222,15 +222,15 @@ end
 struct BomexTendencies{FT} <: Source
   "Advection tendency in total moisture `[s⁻¹]`"
   ∂qt∂t::FT
-  "Lower extent of piecewise profile `[m]`"
+  "Lower extent of piecewise profile (moisture term) `[m]`"
   z_l::FT   
-  "Upper extent of piecewise profile `[m]`"
+  "Upper extent of piecewise profile (moisture term) `[m]`"
   z_h::FT
   "Cooling rate `[K/s]`"
   ∂θ∂t::FT
-  "Piecewise function limit"
+  "Lower extent of piecewise profile (subsidence term) `[m]`"
   zl_sub::FT
-  "Piecewise function limit"
+  "Upper extent of piecewise profile (subsidence term) `[m]`"
   zh_sub::FT
   "Subsidence peak velocity"
   w_sub::FT
@@ -242,9 +242,9 @@ function atmos_source!(s::BomexTendencies, atmos::AtmosModel, source::Vars, stat
   q_tot = state.moisture.ρq_tot / state.ρ
   TS    = thermo_state(atmos.moisture, atmos.orientation, state, aux)
   
-  # Contribution from temperature tendency term (prescribed radiative cooling)
-  # and 
-  # Contribution from prescribed drying rate ∂qt∂t
+  # Moisture tendencey (sink term) 
+  # Temperature tendency (Radiative cooling)
+  # Large scale subsidence
   z_l = s.z_l
   z_h = s.z_h
   
@@ -259,16 +259,18 @@ function atmos_source!(s::BomexTendencies, atmos::AtmosModel, source::Vars, stat
   # Thermodynamic state identification
   q_pt  = PhasePartition(TS)
   cvm   = cv_m(TS)
-
+  
+  # Temperature tendency
   if z <= FT(s.zl_sub)
     source.ρe += ρ*cvm*∂T∂t + ρ*e_int_v0*∂qt∂t
   else
-    source.ρe += (ρ*cvm*∂T∂t + ρ*e_int_v0*∂qt∂t)*(z-z_l)/(z_h-z_l)
+    source.ρe += (ρ*cvm*exner(TS)*∂T∂t + ρ*e_int_v0*∂qt∂t)*(z-z_l)/(z_h-z_l)
   end
 
+  # Moisture tendency 
   if z <= z_l
     source.moisture.ρq_tot += ρ * ∂qt∂t
-  else
+  elseif z_l < z <= z_h
     source.moisture.ρq_tot += ρ * (∂qt∂t - ∂qt∂t * (z-z_l) / (z_h-z_l))
   end
   
@@ -277,29 +279,15 @@ function atmos_source!(s::BomexTendencies, atmos::AtmosModel, source::Vars, stat
   zl_sub = s.zl_sub
   zh_sub = s.zh_sub
   wₛ = FT(0)
-  if z <= z_l
-    wₛ = FT(0) + z*(w_sub)/(z_l)
-  else
-    wₛ = w_sub - (z - z_l)* (w_sub)/(z_h - z_l)
+  if z <= zl_sub
+    wₛ = FT(0) + z*(w_sub)/(zl_sub)
+  elseif zl_sub < z <= zh_sub
+    wₛ = w_sub - (z - zl_sub)* (w_sub)/(zh_sub - zl_sub)
   end
   
   k̂ = vertical_unit_vector(atmos.orientation, aux)
   source.ρe -= ρ * wₛ * dot(k̂, diffusive.∇h_tot)
   source.moisture.ρq_tot -= ρ * wₛ * dot(k̂, diffusive.moisture.∇q_tot)
-  return nothing
-end
-
-struct BomexLargeScaleSubsidence{FT} <: Source
- "Subsidence velocity `[m/s]`" 
-  w_sub::FT
-  "Lower extent of piecewise profile `[m]`"
-  z_l::FT
-  "Upper extent of piecewise profile `[m]`"
-  z_h::FT
-end
-function atmos_source!(s::BomexLargeScaleSubsidence, atmos::AtmosModel, source::Vars, state::Vars, diffusive::Vars, aux::Vars, t::Real)
-  FT = eltype(state)
-  
   return nothing
 end
 
@@ -471,13 +459,13 @@ function main()
   resolution = (Δh, Δh, Δv)
   
   # Prescribe domain parameters
-  xmax = 1000
-  ymax = 1000
+  xmax = 6400
+  ymax = 6400
   zmax = 3000
 
   t0 = FT(0)
   timeend = FT(3600*6)
-  CFLmax  = FT(0.01)
+  CFLmax  = FT(0.5)
 
   driver_config = config_bomex(FT, N, resolution, xmax, ymax, zmax)
   solver_config = CLIMA.setup_solver(t0, timeend, driver_config, forcecpu=true, Courant_number=CFLmax)
