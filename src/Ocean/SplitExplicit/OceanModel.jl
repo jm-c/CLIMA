@@ -52,8 +52,6 @@ function calculate_dt(grid, model::OceanModel, Courant_number)
     return dt
 end
 
-using CLIMA.HydrostaticBoussinesq
-
 """
     OceanDGModel()
 
@@ -61,7 +59,7 @@ helper function to add required filtering
 not used in the Driver+Config setup
 """
 function OceanDGModel(
-    bl::Union{OceanModel, HydrostaticBoussinesqModel},
+    bl::OceanModel,
     grid,
     numfluxnondiff,
     numfluxdiff,
@@ -294,6 +292,11 @@ end
             -0 -0
         ]
 
+        # ∇h • (g η)
+#- jmc: put back this term to check
+        η = Q.η 
+        F.u += grav * η * Iʰ
+
         # ∇ • (u θ)
         F.θ += v * θ
 
@@ -317,7 +320,9 @@ end
     t::Real,
 )
     # horizontal viscosity done in horizontal model
-    F.u -= @SVector([0, 0, 1]) * D.ν∇u[3, :]'
+#   F.u -= @SVector([0, 0, 1]) * D.ν∇u[3, :]'
+#- jmc: put back this term to check
+    F.u -= D.ν∇u
 
     F.θ -= D.κ∇θ
 
@@ -340,7 +345,7 @@ end
         S.u -= @SVector [-f * u[2], f * u[1]]
 
         # switch this to S.η if you comment out the fast mode in MultistateMultirateRungeKutta
-        S.η_explicit += A.wz0
+        S.η += A.wz0
     end
 
     return nothing
@@ -361,6 +366,7 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
     apply!(Q, (4,), dg.grid, exp_filter, VerticalDirection())
 
     A = dg.auxstate
+ #=
     # store difference between η from Barotropic Model and η_explicit
     function f!(::OceanModel, Q, A, t)
         @inbounds begin
@@ -370,6 +376,7 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
         return nothing
     end
     nodal_update_aux!(f!, dg, m, Q, t)
+ =#
 
     return true
 end
@@ -409,7 +416,8 @@ end
     abs(SVector(m.cʰ, m.cʰ, m.cᶻ)' * n⁻)
 
 # We want not have jump penalties on η (since not a flux variable)
-@inline function update_penalty!(
+#@inline function update_penalty!(
+function update_penalty!(
     ::Rusanov,
     ::OceanModel,
     n⁻,

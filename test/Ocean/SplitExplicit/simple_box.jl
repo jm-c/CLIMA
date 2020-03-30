@@ -9,7 +9,7 @@ using CLIMA.ODESolvers
 using CLIMA.GenericCallbacks
 using CLIMA.VariableTemplates: flattenednames
 using CLIMA.SplitExplicit
-using CLIMA.HydrostaticBoussinesq
+# using CLIMA.HydrostaticBoussinesq
 using LinearAlgebra
 using StaticArrays
 using Logging, Printf, Dates
@@ -95,7 +95,8 @@ end
 # A is Filled afer the state
 function ocean_init_aux!(
     m::BarotropicModel,
-    P::Union{SimpleBox, OceanGyre},
+   #P::Union{SimpleBox, OceanGyre},
+    P::SimpleBox,
     A,
     geom,
 )
@@ -217,16 +218,16 @@ function main()
     lsrk_barotropic =
         LSRK144NiegemannDiehlBusch(barotropic_dg, Q_2D, dt = dt_fast, t0 = 0)
 
-    #=
     odesolver = MultistateMultirateRungeKutta(
         lsrk_ocean,
         lsrk_horizontal,
         lsrk_barotropic,
     )
-    =#
 
+    #=
     odesolver =
         MultistateRungeKutta(lsrk_ocean, lsrk_horizontal, lsrk_barotropic)
+    =#
 
     step = [0, 0]
     cbvector =
@@ -311,10 +312,10 @@ end
 # RUN THE TESTS #
 #################
 FT = Float64
-vtkpath = "vtk_split_small_timestep"
+vtkpath = "vtk_split"
 
-const timeend = 360   # s
-const tout = 120 # s
+const timeend = 6 * 3600   # s
+const tout = 1800 # s
 
 const N = 4
 const Nˣ = 20
