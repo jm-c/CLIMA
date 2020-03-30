@@ -41,6 +41,27 @@ function DGModel(
     )
 end
 
+function basic_grid_info(dg::DGModel)
+    grid = dg.grid
+    topology = grid.topology
+
+    dim = dimensionality(grid)
+    N = polynomialorder(grid)
+
+    Nq = N + 1
+    Nqk = dim == 2 ? 1 : Nq
+    Nfp = Nq * Nqk
+    Np = dofs_per_element(grid)
+
+    nelem = length(topology.elems)
+    nvertelem = topology.stacksize
+    nhorzelem = div(nelem, nvertelem)
+    nrealelem = length(topology.realelems)
+    nhorzrealelem = div(nrealelem, nvertelem)
+
+    return (Nq, Nqk, Nfp, Np, nvertelem, nhorzelem, nhorzrealelem, nrealelem)
+end
+
 function (dg::DGModel)(dQdt, Q, ::Nothing, t; increment = false)
 
     bl = dg.balancelaw
@@ -388,7 +409,7 @@ function init_ode_state(
             args...;
             ndrange = Np * nrealelem,
         )
-        wait(event) # XXX: This could be `wait(device, event)` once KA supports that.
+        wait(device, event)
         state .= h_state
     end
 
