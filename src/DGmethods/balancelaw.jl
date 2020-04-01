@@ -37,11 +37,11 @@ function vars_gradient end
 function vars_diffusive end
 vars_integrals(::BalanceLaw, FT) = @vars()
 
-num_aux(m::BalanceLaw, FT) = varsize(vars_aux(m,FT))
-num_state(m::BalanceLaw, FT) = varsize(vars_state(m,FT)) # nstate
-num_gradient(m::BalanceLaw, FT) = varsize(vars_gradient(m,FT))  # number_gradient_states
-num_diffusive(m::BalanceLaw, FT) = varsize(vars_diffusive(m,FT)) # number_viscous_states
-num_integrals(m::BalanceLaw, FT) = varsize(vars_integrals(m,FT))
+num_aux(m::BalanceLaw, FT) = varsize(vars_aux(m, FT))
+num_state(m::BalanceLaw, FT) = varsize(vars_state(m, FT)) # nstate
+num_gradient(m::BalanceLaw, FT) = varsize(vars_gradient(m, FT))  # number_gradient_states
+num_diffusive(m::BalanceLaw, FT) = varsize(vars_diffusive(m, FT)) # number_viscous_states
+num_integrals(m::BalanceLaw, FT) = varsize(vars_integrals(m, FT))
 
 function update_aux! end
 function integrate_aux! end
@@ -58,89 +58,118 @@ function init_state! end
 function calculate_dt end
 
 function create_state(bl::BalanceLaw, grid, commtag)
-  topology = grid.topology
-  # FIXME: Remove after updating CUDA
-  h_vgeo = Array(grid.vgeo)
-  FT = eltype(h_vgeo)
-  Np = dofs_per_element(grid)
-  DA = arraytype(grid)
+    topology = grid.topology
+    # FIXME: Remove after updating CUDA
+    h_vgeo = Array(grid.vgeo)
+    FT = eltype(h_vgeo)
+    Np = dofs_per_element(grid)
+    DA = arraytype(grid)
 
-  weights = view(h_vgeo, :, grid.Mid, :)
-  weights = reshape(weights, size(weights, 1), 1, size(weights, 2))
+    weights = view(h_vgeo, :, grid.Mid, :)
+    weights = reshape(weights, size(weights, 1), 1, size(weights, 2))
 
-  V = vars_state(bl, FT)
-  state = MPIStateArray{FT, V}(topology.mpicomm, DA, Np, num_state(bl,FT),
-                               length(topology.elems),
-                               realelems=topology.realelems,
-                               ghostelems=topology.ghostelems,
-                               vmaprecv=grid.vmaprecv, vmapsend=grid.vmapsend,
-                               nabrtorank=topology.nabrtorank,
-                               nabrtovmaprecv=grid.nabrtovmaprecv,
-                               nabrtovmapsend=grid.nabrtovmapsend,
-                               weights=weights, commtag=commtag)
-  return state
+    V = vars_state(bl, FT)
+    state = MPIStateArray{FT, V}(
+        topology.mpicomm,
+        DA,
+        Np,
+        num_state(bl, FT),
+        length(topology.elems),
+        realelems = topology.realelems,
+        ghostelems = topology.ghostelems,
+        vmaprecv = grid.vmaprecv,
+        vmapsend = grid.vmapsend,
+        nabrtorank = topology.nabrtorank,
+        nabrtovmaprecv = grid.nabrtovmaprecv,
+        nabrtovmapsend = grid.nabrtovmapsend,
+        weights = weights,
+        commtag = commtag,
+    )
+    return state
 end
 
-function create_auxstate(bl, grid, commtag=222)
-  topology = grid.topology
-  Np = dofs_per_element(grid)
+function create_auxstate(bl, grid, commtag = 222)
+    topology = grid.topology
+    Np = dofs_per_element(grid)
 
-  h_vgeo = Array(grid.vgeo)
-  FT = eltype(h_vgeo)
-  DA = arraytype(grid)
+    h_vgeo = Array(grid.vgeo)
+    FT = eltype(h_vgeo)
+    DA = arraytype(grid)
 
-  weights = view(h_vgeo, :, grid.Mid, :)
-  weights = reshape(weights, size(weights, 1), 1, size(weights, 2))
+    weights = view(h_vgeo, :, grid.Mid, :)
+    weights = reshape(weights, size(weights, 1), 1, size(weights, 2))
 
-  V = vars_aux(bl, FT)
-  auxstate = MPIStateArray{FT, V}(topology.mpicomm, DA, Np, num_aux(bl,FT),
-                                  length(topology.elems),
-                                  realelems=topology.realelems,
-                                  ghostelems=topology.ghostelems,
-                                  vmaprecv=grid.vmaprecv,
-                                  vmapsend=grid.vmapsend,
-                                  nabrtorank=topology.nabrtorank,
-                                  nabrtovmaprecv=grid.nabrtovmaprecv,
-                                  nabrtovmapsend=grid.nabrtovmapsend,
-                                  weights=weights, commtag=commtag)
+    V = vars_aux(bl, FT)
+    auxstate = MPIStateArray{FT, V}(
+        topology.mpicomm,
+        DA,
+        Np,
+        num_aux(bl, FT),
+        length(topology.elems),
+        realelems = topology.realelems,
+        ghostelems = topology.ghostelems,
+        vmaprecv = grid.vmaprecv,
+        vmapsend = grid.vmapsend,
+        nabrtorank = topology.nabrtorank,
+        nabrtovmaprecv = grid.nabrtovmaprecv,
+        nabrtovmapsend = grid.nabrtovmapsend,
+        weights = weights,
+        commtag = commtag,
+    )
 
-  dim = dimensionality(grid)
-  polyorder = polynomialorder(grid)
-  vgeo = grid.vgeo
-  device = typeof(auxstate.data) <: Array ? CPU() : CUDA()
-  nrealelem = length(topology.realelems)
-  @launch(device, threads=(Np,), blocks=nrealelem,
-          initauxstate!(bl, Val(dim), Val(polyorder), auxstate.data, vgeo, topology.realelems))
-  MPIStateArrays.start_ghost_exchange!(auxstate)
-  MPIStateArrays.finish_ghost_exchange!(auxstate)
+    dim = dimensionality(grid)
+    polyorder = polynomialorder(grid)
+    vgeo = grid.vgeo
+    device = typeof(auxstate.data) <: Array ? CPU() : CUDA()
+    nrealelem = length(topology.realelems)
+    @launch(
+        device,
+        threads = (Np,),
+        blocks = nrealelem,
+        initauxstate!(
+            bl,
+            Val(dim),
+            Val(polyorder),
+            auxstate.data,
+            vgeo,
+            topology.realelems,
+        )
+    )
+    MPIStateArrays.start_ghost_exchange!(auxstate)
+    MPIStateArrays.finish_ghost_exchange!(auxstate)
 
-  return auxstate
+    return auxstate
 end
 
-function create_diffstate(bl, grid, commtag=111)
-  topology = grid.topology
-  Np = dofs_per_element(grid)
+function create_diffstate(bl, grid, commtag = 111)
+    topology = grid.topology
+    Np = dofs_per_element(grid)
 
-  h_vgeo = Array(grid.vgeo)
-  FT = eltype(h_vgeo)
-  DA = arraytype(grid)
+    h_vgeo = Array(grid.vgeo)
+    FT = eltype(h_vgeo)
+    DA = arraytype(grid)
 
-  weights = view(h_vgeo, :, grid.Mid, :)
-  weights = reshape(weights, size(weights, 1), 1, size(weights, 2))
+    weights = view(h_vgeo, :, grid.Mid, :)
+    weights = reshape(weights, size(weights, 1), 1, size(weights, 2))
 
-  # TODO: Clean up this MPIStateArray interface...
-  V = vars_diffusive(bl, FT)
-  diffstate = MPIStateArray{FT, V}(topology.mpicomm, DA, Np,
-                                   num_diffusive(bl,FT),
-                                   length(topology.elems),
-                                   realelems=topology.realelems,
-                                   ghostelems=topology.ghostelems,
-                                   vmaprecv=grid.vmaprecv,
-                                   vmapsend=grid.vmapsend,
-                                   nabrtorank=topology.nabrtorank,
-                                   nabrtovmaprecv=grid.nabrtovmaprecv,
-                                   nabrtovmapsend=grid.nabrtovmapsend,
-                                   weights=weights, commtag=commtag)
+    # TODO: Clean up this MPIStateArray interface...
+    V = vars_diffusive(bl, FT)
+    diffstate = MPIStateArray{FT, V}(
+        topology.mpicomm,
+        DA,
+        Np,
+        num_diffusive(bl, FT),
+        length(topology.elems),
+        realelems = topology.realelems,
+        ghostelems = topology.ghostelems,
+        vmaprecv = grid.vmaprecv,
+        vmapsend = grid.vmapsend,
+        nabrtorank = topology.nabrtorank,
+        nabrtovmaprecv = grid.nabrtovmaprecv,
+        nabrtovmapsend = grid.nabrtovmapsend,
+        weights = weights,
+        commtag = commtag,
+    )
 
-  return diffstate
+    return diffstate
 end
