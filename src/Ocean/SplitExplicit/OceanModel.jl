@@ -320,9 +320,9 @@ end
     t::Real,
 )
     # horizontal viscosity done in horizontal model
-#   F.u -= @SVector([0, 0, 1]) * D.ν∇u[3, :]'
+    F.u -= @SVector([0, 0, 1]) * D.ν∇u[3, :]'
 #- jmc: put back this term to check
-    F.u -= D.ν∇u
+#   F.u -= D.ν∇u
 
     F.θ -= D.κ∇θ
 

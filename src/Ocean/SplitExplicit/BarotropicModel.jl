@@ -17,23 +17,26 @@ function vars_state(m::BarotropicModel, T)
     @vars begin
         η::T
         U::SVector{2, T}
-        η̄::T              # running averge of η
-        Ū::SVector{2, T}  # running averge of U
     end
 end
 
 function init_state!(m::BarotropicModel, Q::Vars, A::Vars, coords, t)
+    Q.η = 0
+    Q.U = @SVector [-0, -0]
     return nothing
 end
 
 function vars_aux(m::BarotropicModel, T)
     @vars begin
-        Gᵁ::SVector{2, T}
-        Ū::SVector{2, T}
+        Gᵁ::SVector{2, T} # integral of baroclinic tendency
+        η̄::T              # running averge of η
+        Ū::SVector{2, T}  # running averge of U
     end
 end
 
 function init_aux!(m::BarotropicModel, A::Vars, geom::LocalGeometry)
+     A.η̄ = -0
+     A.Ū = @SVector [-0, -0]
     return ocean_init_aux!(m, m.baroclinic.problem, A, geom)
 end
 
@@ -175,8 +178,8 @@ end
     dgSlow,
     dgFast,
 )
-    Qfast.η̄ .= -0
-    Qfast.Ū .= (@SVector [-0, -0])'
+    dgFast.auxstate.η̄ .= -0
+    dgFast.auxstate.Ū .= (@SVector [-0, -0])'
 
     # copy η and U from 3D equation
     # to calculate U we need to do an integral of u from the 3D
@@ -220,7 +223,8 @@ end
 
 @inline function cummulate_fast_solution!(
     fast::BarotropicModel,
-    Qfast::MPIStateArray,
+    dgFast,
+    Qfast,
     fast_time,
     fast_dt,
     total_fast_step,
@@ -228,8 +232,13 @@ end
     #- might want to use some of the weighting factors: weights_η & weights_U
     #- should account for case where fast_dt < fast.param.dt
     total_fast_step += 1
-    # Qfast.η̄ .+= Qfast.η
-    Qfast.Ū .+= Qfast.U
+
+    # cumulate Fast solution:
+    # dgFast.auxstate.η̄ .+= Qfast.η
+    # dgFast.auxstate.Ū .+= Qfast.U
+    # for now, with our simple weight, we just take the most recent value for the average
+    dgFast.auxstate.η̄ .= Qfast.η
+    dgFast.auxstate.Ū .= Qfast.U
 
     return nothing
 end
@@ -260,7 +269,8 @@ end
     ### apples is a place holder for 1/H * (Ū - ∫u)
     apples = dgFast.auxstate.Ū
     apples .= 1 / slow.problem.H * (Qfast.U - flat_∫u)
-    # apples .= 1 / slow.problem.H * (Qfast.Ū / total_fast_step - flat_∫u)
+  # apples .=
+  #     1 / slow.problem.H * (dgFast.auxstate.Ū / total_fast_step - flat_∫u)
 
     ### need to reshape these things for the broadcast
     boxy_du = reshape(dQslow.u, Nq^2, Nqk, 2, nelemv, nelemh)
@@ -269,15 +279,13 @@ end
 
     ## this works, we tested it
     ## copy the 2D contribution down the 3D solution
-    boxy_u .+= boxy_apples
-    boxy_du .+= boxy_apples
+  # boxy_u .+= boxy_apples
+  # boxy_du .+= boxy_apples
 
     ### copy 2D eta over to 3D model
     boxy_η_3D = reshape(Qslow.η, Nq^2, Nq, nelemv, nelemh)
-    # boxy_η̄_2D = reshape(Qfast.η̄, Nq, Nq,  1,      1, nelemh)
-    # for now, with our simple weights, we just take the final value:
-    boxy_η̄_2D = reshape(Qfast.η, Nq^2, 1, 1, nelemh)
-    boxy_η_3D .= boxy_η̄_2D
+    boxy_η̄_2D = reshape(dgFast.auxstate.η̄, Nq^2, 1, 1, nelemh)
+  # boxy_η_3D .= boxy_η̄_2D
 
     return nothing
 end
