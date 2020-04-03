@@ -15,36 +15,70 @@ end
 
 function vars_state(m::BarotropicModel, T)
     @vars begin
-        η::T
         U::SVector{2, T}
+        η::T
     end
 end
 
 function init_state!(m::BarotropicModel, Q::Vars, A::Vars, coords, t)
-    Q.η = 0
     Q.U = @SVector [-0, -0]
+    Q.η = -0
     return nothing
 end
 
 function vars_aux(m::BarotropicModel, T)
     @vars begin
         Gᵁ::SVector{2, T} # integral of baroclinic tendency
-        η̄::T              # running averge of η
         Ū::SVector{2, T}  # running averge of U
+        η̄::T              # running averge of η
+        Δu::SVector{2, T} # reconciliation adjustment to u, Δu = 1/H * (Ū - ∫u)
     end
 end
 
 function init_aux!(m::BarotropicModel, A::Vars, geom::LocalGeometry)
-     A.η̄ = -0
-     A.Ū = @SVector [-0, -0]
+     # A.Ū = @SVector [-0, -0]
+     # A.η̄ = -0
     return ocean_init_aux!(m, m.baroclinic.problem, A, geom)
 end
 
-vars_gradient(m::BarotropicModel, T) = @vars()
-vars_diffusive(m::BarotropicModel, T) = @vars()
-vars_integrals(m::BarotropicModel, T) = @vars()
+function vars_gradient(m::BarotropicModel, T)
+    @vars begin
+        U::SVector{2, T}
+    end
+end
 
-@inline flux_diffusive!(::BarotropicModel, args...) = nothing
+@inline function gradvariables!(m::BarotropicModel, G::Vars, Q::Vars, A, t)
+    G.U = Q.U
+    return nothing
+end
+
+function vars_diffusive(m::BarotropicModel, T)
+    @vars begin
+        ν∇U::SMatrix{3, 2, T, 6}
+    end
+end
+
+@inline function diffusive!(
+    m::BarotropicModel,
+    D::Vars,
+    G::Grad,
+    Q::Vars,
+    A::Vars,
+    t,
+)
+    ν = viscosity_tensor(m)
+    D.ν∇U = ν * G.U
+
+    return nothing
+end
+
+@inline function viscosity_tensor(bm::BarotropicModel)
+    m = bm.baroclinic
+    return Diagonal(@SVector [m.νʰ, m.νʰ, 0])
+end
+
+vars_integrals(m::BarotropicModel, T) = @vars()
+vars_reverse_integrals(m::BarotropicModel, T) = @vars()
 
 @inline function flux_nondiffusive!(
     m::BarotropicModel,
@@ -58,14 +92,29 @@ vars_integrals(m::BarotropicModel, T) = @vars()
         η = Q.η
         H = m.baroclinic.problem.H
         Iʰ = @SMatrix [
-            1 -0
-            -0 1
-            -0 -0
+            1 0
+            0 1
+            0 0
         ]
 
         F.η += U
         F.U += grav * H * η * Iʰ
     end
+end
+
+@inline function flux_diffusive!(
+    m::BarotropicModel,
+    F::Grad,
+    Q::Vars,
+    D::Vars,
+    HD::Vars,
+    A::Vars,
+    t::Real,
+)
+    # numerical diffusivity for stability
+    F.U -= D.ν∇U
+
+    return nothing
 end
 
 @inline function source!(
@@ -231,14 +280,13 @@ end
 )
     #- might want to use some of the weighting factors: weights_η & weights_U
     #- should account for case where fast_dt < fast.param.dt
-    total_fast_step += 1
+    # total_fast_step += 1  # now done outside since Integer are passed by value !!!
 
     # cumulate Fast solution:
+    dgFast.auxstate.Ū .+= Qfast.U
     # dgFast.auxstate.η̄ .+= Qfast.η
-    # dgFast.auxstate.Ū .+= Qfast.U
-    # for now, with our simple weight, we just take the most recent value for the average
+    # for now, with our simple weight, we just take the most recent value for η
     dgFast.auxstate.η̄ .= Qfast.η
-    dgFast.auxstate.Ū .= Qfast.U
 
     return nothing
 end
@@ -266,26 +314,23 @@ end
     boxy_∫u = reshape(dgSlow.auxstate.∫u, Nq^2, Nq, 2, nelemv, nelemh)
     flat_∫u = @view boxy_∫u[:, end, :, end, :]
 
-    ### apples is a place holder for 1/H * (Ū - ∫u)
-    apples = dgFast.auxstate.Ū
-    apples .= 1 / slow.problem.H * (Qfast.U - flat_∫u)
-  # apples .=
-  #     1 / slow.problem.H * (dgFast.auxstate.Ū / total_fast_step - flat_∫u)
+    ### Δu is a place holder for 1/H * (Ū - ∫u)
+    Δu = dgFast.auxstate.Δu
+    Δu .= 1 / slow.problem.H * (dgFast.auxstate.Ū / total_fast_step - flat_∫u)
 
+    ### copy the 2D contribution down the 3D solution
     ### need to reshape these things for the broadcast
-    boxy_du = reshape(dQslow.u, Nq^2, Nqk, 2, nelemv, nelemh)
     boxy_u = reshape(Qslow.u, Nq^2, Nqk, 2, nelemv, nelemh)
-    boxy_apples = reshape(apples, Nq^2, 1, 2, 1, nelemh)
-
-    ## this works, we tested it
-    ## copy the 2D contribution down the 3D solution
-  # boxy_u .+= boxy_apples
-  # boxy_du .+= boxy_apples
+    boxy_Δu = reshape(Δu, Nq^2, 1, 2, 1, nelemh)
+    ### this works, we tested it
+ #  boxy_u .+= boxy_Δu
 
     ### copy 2D eta over to 3D model
-    boxy_η_3D = reshape(Qslow.η, Nq^2, Nq, nelemv, nelemh)
+ #  η_3D = Qslow.η
+    η_3D = Qslow.η_diag
+    boxy_η_3D = reshape(η_3D, Nq^2, Nq, nelemv, nelemh)
     boxy_η̄_2D = reshape(dgFast.auxstate.η̄, Nq^2, 1, 1, nelemh)
-  # boxy_η_3D .= boxy_η̄_2D
+    boxy_η_3D .= boxy_η̄_2D
 
     return nothing
 end

@@ -99,7 +99,7 @@ function vars_state(m::OceanModel, T)
         u::SVector{2, T}
         η::T
         θ::T
-        η_explicit::T
+        η_diag::T
     end
 end
 
@@ -366,17 +366,15 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
     apply!(Q, (4,), dg.grid, exp_filter, VerticalDirection())
 
     A = dg.auxstate
- #=
-    # store difference between η from Barotropic Model and η_explicit
+    # store difference between η from Barotropic Model and η_diag
     function f!(::OceanModel, Q, A, t)
         @inbounds begin
-            A.Δη = Q.η - Q.η_explicit
+            A.Δη = Q.η - Q.η_diag
         end
 
         return nothing
     end
     nodal_update_aux!(f!, dg, m, Q, t)
- =#
 
     return true
 end

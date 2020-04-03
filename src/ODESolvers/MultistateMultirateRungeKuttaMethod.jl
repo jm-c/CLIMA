@@ -116,7 +116,7 @@ function ODEs.dostep!(
 
     # set state to match slow model
     # zero out the cummulative arrays
-  # initialize_fast_state!(slow_bl, fast_bl, Qslow, Qfast, slow.rhs!, fast.rhs!)
+    initialize_fast_state!(slow_bl, fast_bl, Qslow, Qfast, slow.rhs!, fast.rhs!)
     total_fast_step = 0
 
     groupsize = 256
@@ -127,7 +127,7 @@ function ODEs.dostep!(
 
         # Evaluate the slow mode
         # --> save tendency for the fast
-        # slow.rhs!(dQ2fast, Qslow, param, slow_stage_time, increment = false)
+        slow.rhs!(dQ2fast, Qslow, param, slow_stage_time, increment = false)
 
         # TODO: replace slow.rhs! call with use of dQ2fast
         slow.rhs!(dQslow, Qslow, param, slow_stage_time, increment = true)
@@ -161,7 +161,6 @@ function ODEs.dostep!(
         nsubsteps = fast_dt > 0 ? ceil(Int, γ * slow_dt / ODEs.getdt(fast)) : 1
         fast_dt = γ * slow_dt / nsubsteps
 
-  #=
         # get slow tendency contribution to advance fast equation
         #  ---> work with dQ2fast as input
         pass_tendency_from_slow_to_fast!(
@@ -172,13 +171,11 @@ function ODEs.dostep!(
             Qfast,
             dQ2fast,
         )
-  =#
 
         for substep in 1:nsubsteps
             fast_time = slow_stage_time + (substep - 1) * fast_dt
             ODEs.dostep!(Qfast, fast, param, fast_time, fast_dt)
             #  ---> need to cumulate U at this time (and not at each RKB sub-time-step)
-  #=
             cummulate_fast_solution!(
                 fast_bl,
                 fast.rhs!,
@@ -187,10 +184,9 @@ function ODEs.dostep!(
                 fast_dt,
                 total_fast_step,
             )
-  =#
+            total_fast_step += 1
         end
 
-  #=
         ### later testing ignore this
         # reconcile slow equation using fast equation
         reconcile_from_fast_to_slow!(
@@ -203,7 +199,6 @@ function ODEs.dostep!(
             Qfast,
             total_fast_step,
         )
-  =#
 
     end
     return nothing
