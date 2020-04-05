@@ -70,7 +70,9 @@ end
 
 @inline source!(::HorizontalModel, args...) = nothing
 
-@inline update_penalty!(nf::Rusanov, hm::HorizontalModel, args...) =
+@inline update_penalty!(
+        nf::Union{Rusanov, CentralNumericalFluxNonDiffusive},
+        hm::HorizontalModel, args...) =
     update_penalty!(nf, hm.ocean, args...)
 
 @inline wavespeed(hm::HorizontalModel, n⁻, args...) =
