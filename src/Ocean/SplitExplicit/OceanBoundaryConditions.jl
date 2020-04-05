@@ -27,7 +27,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::CoastlineFreeSlip,
-    ::Union{Rusanov, CentralNumericalFluxGradient},
+    ::Union{Rusanov, CentralNumericalFluxNonDiffusive, CentralNumericalFluxGradient},
     Q⁺,
     A⁺,
     n⁻,
@@ -41,7 +41,7 @@ end
 @inline function ocean_boundary_state!(
     ::BarotropicModel,
     ::CoastlineFreeSlip,
-    ::Union{Rusanov, CentralNumericalFluxGradient},
+    ::Union{Rusanov, CentralNumericalFluxNonDiffusive, CentralNumericalFluxGradient},
     Q⁺,
     A⁺,
     n⁻,
@@ -108,7 +108,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::CoastlineNoSlip,
-    ::Rusanov,
+    ::Union{Rusanov, CentralNumericalFluxNonDiffusive},
     Q⁺,
     A⁺,
     n⁻,
@@ -124,7 +124,7 @@ end
 @inline function ocean_boundary_state!(
     ::BarotropicModel,
     ::CoastlineNoSlip,
-    ::Rusanov,
+    ::Union{Rusanov, CentralNumericalFluxNonDiffusive},
     Q⁺,
     A⁺,
     n⁻,
@@ -236,7 +236,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::OceanFloorFreeSlip,
-    ::Rusanov,
+    ::Union{Rusanov, CentralNumericalFluxNonDiffusive},
     Q⁺,
     A⁺,
     n⁻,
@@ -314,7 +314,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::OceanFloorNoSlip,
-    ::Rusanov,
+    ::Union{Rusanov, CentralNumericalFluxNonDiffusive},
     Q⁺,
     A⁺,
     n⁻,
@@ -393,7 +393,7 @@ applying neumann boundary conditions, so don't need to do anything for these num
         OceanSurfaceNoStressForcing,
         OceanSurfaceStressForcing,
     },
-    ::Union{Rusanov, CentralNumericalFluxGradient},
+    ::Union{Rusanov, CentralNumericalFluxNonDiffusive, CentralNumericalFluxGradient},
     Q⁺,
     A⁺,
     n⁻,
