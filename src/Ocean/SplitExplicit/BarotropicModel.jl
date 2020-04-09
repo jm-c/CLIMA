@@ -134,8 +134,9 @@ end
     abs(SVector(m.baroclinic.cʰ, m.baroclinic.cʰ, m.baroclinic.cᶻ)' * n⁻)
 
 # We want not have jump penalties on η (since not a flux variable)
+#   ::Union{Rusanov, CentralNumericalFluxNonDiffusive},
 function update_penalty!(
-    ::Union{Rusanov, CentralNumericalFluxNonDiffusive},
+    ::Rusanov,
     ::BarotropicModel,
     n⁻,
     λ,

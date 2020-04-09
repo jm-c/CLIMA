@@ -70,8 +70,9 @@ end
 
 @inline source!(::HorizontalModel, args...) = nothing
 
+#       nf::Union{Rusanov, CentralNumericalFluxNonDiffusive},
 @inline update_penalty!(
-        nf::Union{Rusanov, CentralNumericalFluxNonDiffusive},
+        nf::Rusanov,
         hm::HorizontalModel, args...) =
     update_penalty!(nf, hm.ocean, args...)
 
