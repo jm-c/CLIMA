@@ -77,10 +77,22 @@ function OceanDGModel(
         gradnumflux,
     )
 
+    conti3d_dg = DGModel(
+        Continuity3dModel(bl),
+        grid,
+        numfluxnondiff,
+        numfluxdiff,
+        gradnumflux,
+    )
+    FT = eltype(grid)
+    conti3d_Q = init_ode_state(conti3d_dg, FT(0); init_on_cpu = true)
+
     modeldata = (
         vert_filter = vert_filter,
         exp_filter = exp_filter,
         tendency_dg = tendency_dg,
+        conti3d_dg = conti3d_dg,
+        conti3d_Q = conti3d_Q,
     )
 
     return DGModel(
@@ -94,6 +106,7 @@ function OceanDGModel(
     )
 end
 
+# function vars_state(m::Union{OceanModel, Continuity3dModel}, T)
 function vars_state(m::OceanModel, T)
     @vars begin
         u::SVector{2, T}
@@ -294,7 +307,7 @@ end
 
         # ∇h • (g η)
 #- jmc: put back this term to check
-        η = Q.η 
+        η = Q.η
         F.u += grav * η * Iʰ
 
         # ∇ • (u θ)
@@ -366,19 +379,51 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
     apply!(Q, (4,), dg.grid, exp_filter, VerticalDirection())
 
     A = dg.auxstate
+#----------
+    conti3d_dg = dg.modeldata.conti3d_dg
+    # ct3d_Q = dg.modeldata.conti3d_Q
+    # ct3d_dQ = similar(ct3d_Q)
+    # fill!(ct3d_dQ, 0)
+    #- Instead, use directly conti3d_Q to store dQ (since we will not update the state)
+    ct3d_dQ = dg.modeldata.conti3d_Q
+
+    ct3d_bl = conti3d_dg.balancelaw
+
+    # Compute Divergence of Horizontal Flow field using "conti3d_dg" DGmodel
+    # note: with "increment = false", just return tendency (no state update)
+    p = nothing
+    conti3d_dg(ct3d_dQ, Q, p, t; increment = false)
+
+    # Copy from ct3d_dQ.θ which is realy ∇h•u into A.w (which will be integrated)
+    function f!(::OceanModel, dQ, A, t)
+        @inbounds begin
+           A.w = dQ.θ
+        end
+    end
+    nodal_update_aux!(f!, dg, m, ct3d_dQ, t)
+#----------
+
+    # compute integrals for w and pkin
+    indefinite_stack_integral!(dg, m, Q, A, t) # bottom -> top
+    reverse_indefinite_stack_integral!(dg, m, Q, A, t) # top -> bottom
+
+    # copy down wz0
+    copy_stack_field_down!(dg, m, A, 1, 3)
+
     # store difference between η from Barotropic Model and η_diag
-    function f!(::OceanModel, Q, A, t)
+    function fd!(::OceanModel, Q, A, t)
         @inbounds begin
             A.Δη = Q.η - Q.η_diag
         end
 
         return nothing
     end
-    nodal_update_aux!(f!, dg, m, Q, t)
+    nodal_update_aux!(fd!, dg, m, Q, t)
 
     return true
 end
 
+ #=
 function update_aux_diffusive!(
     dg::DGModel,
     m::OceanModel,
@@ -409,6 +454,7 @@ function update_aux_diffusive!(
 
     return true
 end
+ =#
 
 @inline wavespeed(m::OceanModel, n⁻, _...) =
     abs(SVector(m.cʰ, m.cʰ, m.cᶻ)' * n⁻)

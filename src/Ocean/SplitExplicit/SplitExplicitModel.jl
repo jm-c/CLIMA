@@ -2,6 +2,7 @@ module SplitExplicit
 
 export OceanDGModel,
     OceanModel,
+    Continuity3dModel,
     HorizontalModel,
     BarotropicModel,
     LinearVerticalModel,
@@ -68,6 +69,7 @@ function ocean_init_aux! end
 function ocean_init_state! end
 
 include("OceanModel.jl")
+include("Continuity3dModel.jl")
 include("TendencyIntegralModel.jl")
 include("HorizontalModel.jl")
 include("BarotropicModel.jl")
