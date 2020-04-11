@@ -43,24 +43,6 @@ end
 boundary_state!(::CentralNumericalFluxDiffusive, cm::Continuity3dModel,
                 _...) = nothing
 
-@inline function boundary_state!(
-    nf::Union{Rusanov, CentralNumericalFluxNonDiffusive},
-    cm::Continuity3dModel,
-    Q⁺::Vars,
-    A⁺::Vars,
-    n⁻,
-    Q⁻::Vars,
-    A⁻::Vars,
-    bctype,
-    t,
-    _...,
-)
-    Q⁺.u = -Q⁻.u
-
-    return nothing
-end
-
-#=
 """
     boundary_state!(nf, ::Continuity3dModel, Q⁺, A⁺, Q⁻, A⁻, bctype)
 
@@ -92,4 +74,3 @@ dispatches to a function in OceanBoundaryConditions.jl based on bytype defined b
         t,
     )
 end
-=#
