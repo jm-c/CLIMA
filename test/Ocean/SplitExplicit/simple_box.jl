@@ -63,9 +63,9 @@ end
     bctype,
     x...,
 )
-    if bctype == 1
+   #if bctype == 1
         ocean_boundary_state!(m, CoastlineNoSlip(), x...)
-    end
+   #end
 end
 
 @inline function ocean_boundary_state!(
