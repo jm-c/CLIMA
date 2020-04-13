@@ -58,6 +58,17 @@ end
 end
 
 @inline function ocean_boundary_state!(
+    m::Continuity3dModel,
+    p::SimpleBox,
+    bctype,
+    x...,
+)
+   #if bctype == 1
+        ocean_boundary_state!(m, CoastlineFreeSlip(), x...)
+   #end
+end
+
+@inline function ocean_boundary_state!(
     m::BarotropicModel,
     p::SimpleBox,
     bctype,
