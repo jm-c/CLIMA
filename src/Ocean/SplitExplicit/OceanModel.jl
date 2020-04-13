@@ -410,6 +410,8 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
     # copy down wz0
     copy_stack_field_down!(dg, m, A, 1, 3)
 
+ #=
+ # now moved to fct "reconcile_from_fast_to_slow" in BarotropicModel.jl
     # store difference between η from Barotropic Model and η_diag
     function fd!(::OceanModel, Q, A, t)
         @inbounds begin
@@ -419,6 +421,7 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
         return nothing
     end
     nodal_update_aux!(fd!, dg, m, Q, t)
+ =#
 
     return true
 end

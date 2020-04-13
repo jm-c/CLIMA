@@ -333,5 +333,17 @@ end
     boxy_η̄_2D = reshape(dgFast.auxstate.η̄, Nq^2, 1, 1, nelemh)
     boxy_η_3D .= boxy_η̄_2D
 
+  #--- moved here from fct "update_aux" in OceanModel.jl:
+    # store difference between η from Barotropic Model and η_diag
+    function f!(::OceanModel, Q, A, t)
+        @inbounds begin
+            A.Δη = Q.η - Q.η_diag
+        end
+
+        return nothing
+    end
+    nodal_update_aux!(f!, dgSlow, slow, Qslow, 0)
+  #--- end
+
     return nothing
 end
