@@ -223,10 +223,10 @@ end
 @inline function initialize_fast_state!(
     slow::OceanModel,
     fast::BarotropicModel,
-    Qslow,
-    Qfast,
     dgSlow,
     dgFast,
+    Qslow,
+    Qfast,
 )
     dgFast.auxstate.η̄ .= -0
     dgFast.auxstate.Ū .= (@SVector [-0, -0])'
@@ -297,7 +297,6 @@ end
     fast::BarotropicModel,
     dgSlow,
     dgFast,
-    dQslow,
     Qslow,
     Qfast,
     total_fast_step,

@@ -116,7 +116,7 @@ function ODEs.dostep!(
 
     # set state to match slow model
     # zero out the cummulative arrays
-    initialize_fast_state!(slow_bl, fast_bl, Qslow, Qfast, slow.rhs!, fast.rhs!)
+    initialize_fast_state!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast)
     total_fast_step = 0
 
     groupsize = 256
@@ -194,7 +194,6 @@ function ODEs.dostep!(
             fast_bl,
             slow.rhs!,
             fast.rhs!,
-            dQslow,
             Qslow,
             Qfast,
             total_fast_step,
