@@ -236,13 +236,27 @@ function main()
     )
 
     #=
-    odesolver =
-        MultistateRungeKutta(lsrk_ocean, lsrk_horizontal, lsrk_barotropic)
+    odesolver = MultistateRungeKutta(
+        lsrk_ocean,
+        lsrk_horizontal,
+        lsrk_barotropic,
+    )
     =#
 
     step = [0, 0]
-    cbvector =
-        make_callbacks(vtkpath, step, nout, mpicomm, odesolver, dg, model, Q_3D)
+    cbvector = make_callbacks(
+        vtkpath,
+        step,
+        nout,
+        mpicomm,
+        odesolver,
+        dg,
+        model,
+        Q_3D,
+        barotropic_dg,
+        barotropicmodel,
+        Q_2D,
+    )
 
     eng0 = norm(Q_3D)
     @info @sprintf """Starting
@@ -256,15 +270,27 @@ function main()
     return nothing
 end
 
-function make_callbacks(vtkpath, step, nout, mpicomm, odesolver, dg, model, Q)
+function make_callbacks(
+    vtkpath,
+    step,
+    nout,
+    mpicomm,
+    odesolver,
+    dg_slow,
+    model_slow,
+    Q_slow,
+    dg_fast,
+    model_fast,
+    Q_fast,
+)
     if isdir(vtkpath)
         rm(vtkpath, recursive = true)
     end
     mkpath(vtkpath)
-    mkpath(vtkpath * "/output")
-    # mkpath(vtkpath * "/monthly")
+    mkpath(vtkpath * "/slow")
+    mkpath(vtkpath * "/fast")
 
-    function do_output(span, step)
+    function do_output(span, step, model, dg, Q)
         outprefix = @sprintf(
             "%s/%s/mpirank%04d_step%04d",
             vtkpath,
@@ -278,28 +304,26 @@ function make_callbacks(vtkpath, step, nout, mpicomm, odesolver, dg, model, Q)
         writevtk(outprefix, Q, dg, statenames, dg.auxstate, auxnames)
     end
 
-    do_output("output", step[1])
-    cbvtkw = GenericCallbacks.EveryXSimulationSteps(nout) do (init = false)
-        do_output("output", step[1])
+    do_output("slow", step[1], model_slow, dg_slow, Q_slow)
+    cbvtk_slow = GenericCallbacks.EveryXSimulationSteps(nout) do (init = false)
+        do_output("slow", step[1], model_slow, dg_slow, Q_slow)
         step[1] += 1
         nothing
     end
 
-    #=
-    do_output("monthly", step[2])
-    cbvtkm = GenericCallbacks.EveryXSimulationSteps(5 * nout) do (init = false)
-        do_output("monthly", step[2])
+    do_output("fast", step[2], model_fast, dg_fast, Q_fast)
+    cbvtk_fast = GenericCallbacks.EveryXSimulationSteps(nout) do (init = false)
+        do_output("fast", step[2], model_fast, dg_fast, Q_fast)
         step[2] += 1
         nothing
     end
-    =#
 
     starttime = Ref(now())
     cbinfo = GenericCallbacks.EveryXWallTimeSeconds(60, mpicomm) do (s = false)
         if s
             starttime[] = now()
         else
-            energy = norm(Q)
+            energy = norm(Q_slow)
             @info @sprintf(
                 """Update
                 simtime = %8.2f / %8.2f
@@ -316,7 +340,7 @@ function make_callbacks(vtkpath, step, nout, mpicomm, odesolver, dg, model, Q)
         end
     end
 
-    return (cbvtkw, cbinfo)
+    return (cbvtk_slow, cbvtk_fast, cbinfo)
 end
 
 #################
