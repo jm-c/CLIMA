@@ -367,7 +367,8 @@ zrange = range(FT(-H); length = Nᶻ + 1, stop = 0)
 const cʰ = sqrt(grav * H)
 const cᶻ = 0
 
-const τₒ = 1e-1  # (m/s)^2
+#const τₒ = 1e-1  # (m/s)^2
+const τₒ = 0
 const λʳ = 10 // 86400 # m / s
 const θᴱ = 10    # K
 
