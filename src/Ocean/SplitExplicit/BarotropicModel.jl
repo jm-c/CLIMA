@@ -316,7 +316,8 @@ end
 
     ### Δu is a place holder for 1/H * (Ū - ∫u)
     Δu = dgFast.auxstate.Δu
-    Δu .= 1 / slow.problem.H * (dgFast.auxstate.Ū / total_fast_step - flat_∫u)
+    Δu .= 1 / slow.problem.H * (Qfast.U - flat_∫u)
+ #  Δu .= 1 / slow.problem.H * (dgFast.auxstate.Ū / total_fast_step - flat_∫u)
 
     ### copy the 2D contribution down the 3D solution
     ### need to reshape these things for the broadcast
