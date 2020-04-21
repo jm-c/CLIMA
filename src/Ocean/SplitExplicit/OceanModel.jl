@@ -307,8 +307,8 @@ end
 
         # ∇h • (g η)
 #- jmc: put back this term to check
-        η = Q.η
-        F.u += grav * η * Iʰ
+#       η = Q.η
+#       F.u += grav * η * Iʰ
 
         # ∇ • (u θ)
         F.θ += v * θ
