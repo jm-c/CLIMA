@@ -354,8 +354,7 @@ end
         u = Q.u # Horizontal components of velocity
 
         # f × u
-      # f = coriolis_force(m, A.y)
-        f = 0
+        f = coriolis_force(m, A.y)
         S.u -= @SVector [-f * u[2], f * u[1]]
 
         # switch this to S.η if you comment out the fast mode in MultistateMultirateRungeKutta
