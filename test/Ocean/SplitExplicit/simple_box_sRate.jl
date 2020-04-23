@@ -152,7 +152,8 @@ function main()
     prob = SimpleBox{FT}(Lˣ, Lʸ, H, τₒ, λʳ, θᴱ)
     # prob = OceanGyre{FT}(Lˣ, Lʸ, H, τₒ = τₒ, λʳ = λʳ, θᴱ = θᴱ)
 
-    model = OceanModel{FT}(prob, cʰ = cʰ)
+    # model = OceanModel{FT}(prob, cʰ = cʰ)
+    model = OceanModel{FT}(prob, cʰ = cʰ, fₒ = FT(0), β = FT(0) )
     # model = HydrostaticBoussinesqModel{FT}(prob, cʰ = cʰ)
 
     horizontalmodel = HorizontalModel(model)
