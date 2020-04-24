@@ -205,7 +205,6 @@ function main()
         Rusanov(),
         CentralNumericalFluxDiffusive(),
         CentralNumericalFluxGradient();
-        direction = VerticalDirection(),
         auxstate = dg.auxstate,
         diffstate = dg.diffstate,
     )

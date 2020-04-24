@@ -204,7 +204,6 @@ function main()
         CentralNumericalFluxNonDiffusive(),
         CentralNumericalFluxDiffusive(),
         CentralNumericalFluxGradient();
-        direction = VerticalDirection(),
         auxstate = dg.auxstate,
         diffstate = dg.diffstate,
     )
