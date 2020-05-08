@@ -114,16 +114,15 @@ function ODEs.dostep!(
     slow_bl = slow.rhs!.balancelaw
     fast_bl = fast.rhs!.balancelaw
 
-    # set state to match slow model
-    # zero out the cummulative arrays
-    initialize_fast_state!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast)
-    total_fast_step = 0
-
     groupsize = 256
 
     for slow_s in 1:length(slow.RKA)
         # Currnent slow state time
         slow_stage_time = time + slow.RKC[slow_s] * slow_dt
+
+        # zero out the cummulative arrays
+        initialize_fast_state!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast)
+        total_fast_step = 0
 
         # Evaluate the slow mode
         # --> save tendency for the fast
