@@ -231,6 +231,7 @@ end
     dgFast.auxstate.η̄ .= -0
     dgFast.auxstate.Ū .= (@SVector [-0, -0])'
 
+  #=
     # copy η and U from 3D equation
     # to calculate U we need to do an integral of u from the 3D
     indefinite_stack_integral!(dgSlow, slow, Qslow, dgSlow.auxstate, 0)
@@ -245,6 +246,7 @@ end
     boxy_η = reshape(Qslow.η, Nq^2, Nqk, nelemv, nelemh)
     flat_η = @view boxy_η[:, end, end, :]
     Qfast.η .= reshape(flat_η, Nq^2, 1, nelemh)
+  =#
 
     return nothing
 end
