@@ -32,6 +32,8 @@ function vars_aux(m::BarotropicModel, T)
         Ū::SVector{2, T}  # running averge of U
         η̄::T              # running averge of η
         Δu::SVector{2, T} # reconciliation adjustment to u, Δu = 1/H * (Ū - ∫u)
+        η_diag::T         # η from baroclinic model (for diagnostic)
+        Δη::T             # diagnostic difference: η_barotropic - η_baroclinic
     end
 end
 
@@ -328,24 +330,17 @@ end
     ### this works, we tested it
  #  boxy_u .+= boxy_Δu
 
-    ### copy 2D eta over to 3D model
- #  η_3D = Qslow.η
-    η_3D = Qslow.η_diag
+    ### save eta from 3D model into η_diag (aux var of 2D model)
+    ### and store difference between η from Barotropic Model and η_diag
+    η_3D = Qslow.η
     boxy_η_3D = reshape(η_3D, Nq^2, Nq, nelemv, nelemh)
+    flat_η = @view boxy_η_3D[:, end, end, :]
+    dgFast.auxstate.η_diag .= reshape(flat_η, Nq^2, 1, nelemh)
+    dgFast.auxstate.Δη .= dgFast.auxstate.η̄  - dgFast.auxstate.η_diag
+
+    ### copy 2D eta over to 3D model
     boxy_η̄_2D = reshape(dgFast.auxstate.η̄, Nq^2, 1, 1, nelemh)
-    boxy_η_3D .= boxy_η̄_2D
-
-  #--- moved here from fct "update_aux" in OceanModel.jl:
-    # store difference between η from Barotropic Model and η_diag
-    function f!(::OceanModel, Q, A, t)
-        @inbounds begin
-            A.Δη = Q.η - Q.η_diag
-        end
-
-        return nothing
-    end
-    nodal_update_aux!(f!, dgSlow, slow, Qslow, 0)
-  #--- end
+ #  boxy_η_3D .= boxy_η̄_2D
 
     return nothing
 end

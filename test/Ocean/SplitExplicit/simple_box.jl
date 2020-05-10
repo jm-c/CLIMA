@@ -31,6 +31,14 @@ import CLIMA.DGmethods:
     update_aux!, update_aux_diffusive!, vars_state, vars_aux, VerticalDirection
 using GPUifyLoops
 
+#-- Add State statistics package
+using Pkg
+Pkg.add(
+ PackageSpec(url="https://github.com/christophernhill/temp-clima-statetools",rev="0.1.2")
+)
+using CLIMAStateCheck
+#--
+
 const ArrayType = CLIMA.array_type()
 
 struct SimpleBox{T} <: AbstractOceanProblem
@@ -97,7 +105,6 @@ function ocean_init_aux!(m::OceanModel, p::SimpleBox, A, geom)
     A.w = -0
     A.pkin = -0
     A.wz0 = -0
-    A.Δη = -0
     A.∫u = @SVector [-0, -0]
 
     return nothing
@@ -111,6 +118,13 @@ function ocean_init_aux!(
     A,
     geom,
 )
+    A.Gᵁ = @SVector [-0, -0]
+    A.Ū  = @SVector [-0, -0]
+    A.η̄  = -0
+    A.Δu = @SVector [-0, -0]
+    A.η_diag = -0
+    A.Δη = -0
+
     return nothing
 end
 
@@ -242,6 +256,26 @@ function main()
     )
     =#
 
+   #-- Set up State Check call back for config state arrays, called every ntFreq time steps
+    ntFreq=15
+    cbcs_dg=CLIMAStateCheck.StateCheck.sccreate(
+            [(Q_3D,"oce Q_3D"),
+             (dg.auxstate,"oce aux"),
+        #    (dg.diffstate,"oce diff"),
+        #    (lsrk_ocean.dQ,"oce_dQ"),
+        #    (dg.modeldata.tendency_dg.auxstate,"tend Int aux"),
+        #    (dg.modeldata.conti3d_Q,"conti3d_Q"),
+             (Q_2D,"baro Q_2D"),
+             (barotropic_dg.auxstate ,"baro aux")
+            ],
+            ntFreq);
+        #    (barotropic_dg.diffstate,"baro diff"),
+        #    (horizontal_dg.auxstate, "horz aux"),
+        #    (horizontal_dg.diffstate,"horz diff"),
+        #    (lsrk_horizontal.dQ,"horz_dQ"),
+        #    (lsrk_barotropic.dQ,"baro_dQ")
+    #--
+
     step = [0, 0]
     cbvector = make_callbacks(
         vtkpath,
@@ -264,7 +298,9 @@ function main()
 
     # slow fast state tuple
     Qvec = (slow = Q_3D, fast = Q_2D)
-    solve!(Qvec, odesolver; timeend = timeend, callbacks = cbvector)
+ #  solve!(Qvec, odesolver; timeend = timeend, callbacks = cbvector)
+    cbv=(cbvector...,cbcs_dg)
+    solve!(Qvec, odesolver; timeend = timeend, callbacks = cbv)
 
     return nothing
 end

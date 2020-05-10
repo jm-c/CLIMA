@@ -112,7 +112,6 @@ function vars_state(m::OceanModel, T)
         u::SVector{2, T}
         η::T
         θ::T
-        η_diag::T
     end
 end
 
@@ -127,7 +126,6 @@ function vars_aux(m::OceanModel, T)
         wz0::T          # w at z=0
         ∫u::SVector{2, T}
         y::T     # y-coordinate of the box
-        Δη::T
     end
 end
 
@@ -409,19 +407,6 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
 
     # copy down wz0
     copy_stack_field_down!(dg, m, A, 1, 3)
-
- #=
- # now moved to fct "reconcile_from_fast_to_slow" in BarotropicModel.jl
-    # store difference between η from Barotropic Model and η_diag
-    function fd!(::OceanModel, Q, A, t)
-        @inbounds begin
-            A.Δη = Q.η - Q.η_diag
-        end
-
-        return nothing
-    end
-    nodal_update_aux!(fd!, dg, m, Q, t)
- =#
 
     return true
 end
