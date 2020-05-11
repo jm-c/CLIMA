@@ -376,7 +376,6 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
     # Q[4] = θ
     apply!(Q, (4,), dg.grid, exp_filter, VerticalDirection())
 
-    A = dg.auxstate
 #----------
     conti3d_dg = dg.modeldata.conti3d_dg
     # ct3d_Q = dg.modeldata.conti3d_Q
@@ -392,6 +391,7 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
     p = nothing
     conti3d_dg(ct3d_dQ, Q, p, t; increment = false)
 
+    A = dg.auxstate
     # Copy from ct3d_dQ.θ which is realy ∇h•u into A.w (which will be integrated)
     function f!(::OceanModel, dQ, A, t)
         @inbounds begin
