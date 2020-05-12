@@ -34,7 +34,7 @@ using GPUifyLoops
 #-- Add State statistics package
 using Pkg
 Pkg.add(
- PackageSpec(url="https://github.com/christophernhill/temp-clima-statetools",rev="0.1.2")
+ PackageSpec(url="https://github.com/christophernhill/temp-clima-statetools",rev="0.1.6")
 )
 using CLIMAStateCheck
 #--
@@ -167,7 +167,7 @@ function main()
     # prob = OceanGyre{FT}(Lˣ, Lʸ, H, τₒ = τₒ, λʳ = λʳ, θᴱ = θᴱ)
 
     model = OceanModel{FT}(prob, cʰ = cʰ)
-    # model = HydrostaticBoussinesqModel{FT}(prob, cʰ = cʰ)
+    # model = OceanModel{FT}(prob, cʰ = cʰ, fₒ = FT(0), β = FT(0) )
 
     horizontalmodel = HorizontalModel(model)
 
@@ -265,23 +265,23 @@ function main()
     )
 
    #-- Set up State Check call back for config state arrays, called every ntFreq time steps
-    ntFreq=1
+    ntFreq=10
     cbcs_dg=CLIMAStateCheck.StateCheck.sccreate(
-            [(Q_3D,"oce Q_3D"),
-             (dg.auxstate,"oce aux"),
-        #    (dg.diffstate,"oce diff"),
-        #    (lsrk_ocean.dQ,"oce_dQ"),
-        #    (dg.modeldata.tendency_dg.auxstate,"tend Int aux"),
-        #    (dg.modeldata.conti3d_Q,"conti3d_Q"),
-             (Q_2D,"baro Q_2D"),
-             (barotropic_dg.auxstate ,"baro aux")
+            [ (Q_3D,"oce Q_3D",),
+              (dg.auxstate,"oce aux",),
+        #     (dg.diffstate,"oce diff",),
+        #     (lsrk_ocean.dQ,"oce_dQ",),
+        #     (dg.modeldata.tendency_dg.auxstate,"tend Int aux",),
+        #     (dg.modeldata.conti3d_Q,"conti3d_Q",),
+              (Q_2D,"baro Q_2D",),
+              (barotropic_dg.auxstate ,"baro aux",)
             ],
-            ntFreq);
-        #    (barotropic_dg.diffstate,"baro diff"),
-        #    (horizontal_dg.auxstate, "horz aux"),
-        #    (horizontal_dg.diffstate,"horz diff"),
-        #    (lsrk_horizontal.dQ,"horz_dQ"),
-        #    (lsrk_barotropic.dQ,"baro_dQ")
+            ntFreq; prec=14)
+        #    (barotropic_dg.diffstate,"baro diff",),
+        #    (horizontal_dg.auxstate, "horz aux",),
+        #    (horizontal_dg.diffstate,"horz diff",),
+        #    (lsrk_horizontal.dQ,"horz_dQ",),
+        #    (lsrk_barotropic.dQ,"baro_dQ",)
     #--
 
     step = [0, 0]
@@ -392,8 +392,8 @@ end
 FT = Float64
 vtkpath = "vtk_split"
 
-const timeend = 360   # s
-const tout = 120 # s
+const timeend = 6 * 3600   # s
+const tout = 3600 # s
 
 const N = 4
 const Nˣ = 20
@@ -411,6 +411,7 @@ const cʰ = sqrt(grav * H)
 const cᶻ = 0
 
 const τₒ = 1e-1  # (m/s)^2
+#const τₒ = 0
 const λʳ = 10 // 86400 # m / s
 const θᴱ = 10    # K
 
