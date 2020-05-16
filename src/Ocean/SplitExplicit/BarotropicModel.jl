@@ -20,18 +20,18 @@ end
 
 function vars_aux(m::BarotropicModel, T)
     @vars begin
-        Gᵁ::SVector{2, T} # integral of baroclinic tendency
-        Ū::SVector{2, T}  # running averge of U
-        η̄::T              # running averge of η
-        Δu::SVector{2, T} # reconciliation adjustment to u, Δu = 1/H * (Ū - ∫u)
-        η_diag::T         # η from baroclinic model (for diagnostic)
-        Δη::T             # diagnostic difference: η_barotropic - η_baroclinic
+        Gᵁ::SVector{2, T}  # integral of baroclinic tendency
+        U_c::SVector{2, T} # cumulate U value over fast time-steps
+        η_c::T             # cumulate η value over fast time-steps
+#       U_s::SVector{2, T} # starting U field value
+#       η_s::T             # starting η field value
+        Δu::SVector{2, T}  # reconciliation adjustment to u, Δu = 1/H * (U_averaged - ∫u)
+        η_diag::T          # η from baroclinic model (for diagnostic)
+        Δη::T              # diagnostic difference: η_barotropic - η_baroclinic
     end
 end
 
 function init_aux!(m::BarotropicModel, A::Vars, geom::LocalGeometry)
-     # A.Ū = @SVector [-0, -0]
-     # A.η̄ = -0
     return ocean_init_aux!(m, m.baroclinic.problem, A, geom)
 end
 
@@ -68,7 +68,8 @@ end
 
 @inline function viscosity_tensor(bm::BarotropicModel)
     m = bm.baroclinic
-    return Diagonal(@SVector [m.νʰ, m.νʰ, 0])
+    # return Diagonal(@SVector [m.νʰ, m.νʰ, 0])
+    return Diagonal(@SVector [ 0, 0, 0])
 end
 
 vars_integrals(m::BarotropicModel, T) = @vars()

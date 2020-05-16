@@ -1,6 +1,6 @@
 using CLIMA.DGmethods:
-    initialize_fast_state!,
-    pass_tendency_from_slow_to_fast!,
+    initialize_adjustment!,
+    initialize_fast_from_slow!,
     cummulate_fast_solution!,
     reconcile_from_fast_to_slow!
 
@@ -38,8 +38,8 @@ mutable struct MultistateMultirateRungeKutta{SS, SA, FS, RT} <:
                ODEs.AbstractODESolver
     "slow solver"
     slow_solver::SS
-    "sAlt solver"
-    sAlt_solver::SA
+#   "sAlt solver"
+#   sAlt_solver::SA
     "fast solver"
     fast_solver::FS
     "time step"
@@ -49,19 +49,19 @@ mutable struct MultistateMultirateRungeKutta{SS, SA, FS, RT} <:
 
     function MultistateMultirateRungeKutta(
         slow_solver::LSRK2N,
-        sAlt_solver::LSRK2N,
+#       sAlt_solver::LSRK2N,
         fast_solver,
         Q = nothing;
         dt = ODEs.getdt(slow_solver),
         t0 = slow_solver.t,
     ) where {AT <: AbstractArray}
         SS = typeof(slow_solver)
-        SA = typeof(sAlt_solver)
+#       SA = typeof(sAlt_solver)
         FS = typeof(fast_solver)
         RT = real(eltype(slow_solver.dQ))
         return new{SS, SA, FS, RT}(
             slow_solver,
-            sAlt_solver,
+#           sAlt_solver,
             fast_solver,
             RT(dt),
             RT(t0),
@@ -102,14 +102,16 @@ function ODEs.dostep!(
     slow_dt::AbstractFloat,
 ) where {SS <: LSRK2N}
     slow = msmrrk.slow_solver
-    sAlt = msmrrk.sAlt_solver
+#   sAlt = msmrrk.sAlt_solver
     fast = msmrrk.fast_solver
 
     Qslow = Qvec.slow
     Qfast = Qvec.fast
 
-    dQ2fast = slow.dQ
-    dQslow = sAlt.dQ
+    dQslow = slow.dQ
+    dQ2fast = similar(dQslow)
+#   dQ2fast = slow.dQ
+#   dQslow = sAlt.dQ
 
     slow_bl = slow.rhs!.balancelaw
     fast_bl = fast.rhs!.balancelaw
@@ -120,17 +122,29 @@ function ODEs.dostep!(
         # Currnent slow state time
         slow_stage_time = time + slow.RKC[slow_s] * slow_dt
 
-        # zero out the cummulative arrays
-        initialize_fast_state!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast)
-        total_fast_step = 0
+        # Initialize tentency adjustment before evalution of slow mode
+        initialize_adjustment!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast)
 
         # Evaluate the slow mode
         # --> save tendency for the fast
         slow.rhs!(dQ2fast, Qslow, param, slow_stage_time, increment = false)
 
+        # initialize fast model and get slow tendency contribution to advance
+        # fast equation  ---> work with dQ2fast as input
+        total_fast_step = 0
+        initialize_fast_from_slow!(
+            slow_bl,
+            fast_bl,
+            slow.rhs!,
+            fast.rhs!,
+            Qslow,
+            Qfast,
+            dQ2fast,
+        )
+
         # TODO: replace slow.rhs! call with use of dQ2fast
         slow.rhs!(dQslow, Qslow, param, slow_stage_time, increment = true)
-        sAlt.rhs!(dQslow, Qslow, param, slow_stage_time, increment = true)
+#       sAlt.rhs!(dQslow, Qslow, param, slow_stage_time, increment = true)
 
         event = Event(device(Qslow))
         event = update!(device(Qslow), groupsize)(
@@ -159,17 +173,6 @@ function ODEs.dostep!(
         fast_dt = ODEs.getdt(fast)
         nsubsteps = fast_dt > 0 ? ceil(Int, γ * slow_dt / ODEs.getdt(fast)) : 1
         fast_dt = γ * slow_dt / nsubsteps
-
-        # get slow tendency contribution to advance fast equation
-        #  ---> work with dQ2fast as input
-        pass_tendency_from_slow_to_fast!(
-            slow_bl,
-            fast_bl,
-            slow.rhs!,
-            fast.rhs!,
-            Qfast,
-            dQ2fast,
-        )
 
         for substep in 1:nsubsteps
             fast_time = slow_stage_time + (substep - 1) * fast_dt

@@ -34,7 +34,7 @@ using GPUifyLoops
 #-- Add State statistics package
 using Pkg
 Pkg.add(
- PackageSpec(url="https://github.com/christophernhill/temp-clima-statetools",rev="0.1.2")
+ PackageSpec(url="https://github.com/christophernhill/temp-clima-statetools",rev="0.1.6")
 )
 using CLIMAStateCheck
 #--
@@ -106,6 +106,7 @@ function ocean_init_aux!(m::OceanModel, p::SimpleBox, A, geom)
     A.pkin = -0
     A.wz0 = -0
     A.∫u = @SVector [-0, -0]
+    A.ΔGu = @SVector [-0, -0]
 
     return nothing
 end
@@ -119,8 +120,10 @@ function ocean_init_aux!(
     geom,
 )
     A.Gᵁ = @SVector [-0, -0]
-    A.Ū  = @SVector [-0, -0]
-    A.η̄  = -0
+    A.U_c = @SVector [-0, -0]
+    A.η_c = -0
+#   A.U_s = @SVector [-0, -0]
+#   A.η_s = -0
     A.Δu = @SVector [-0, -0]
     A.η_diag = -0
     A.Δη = -0
@@ -167,22 +170,22 @@ function main()
     # prob = OceanGyre{FT}(Lˣ, Lʸ, H, τₒ = τₒ, λʳ = λʳ, θᴱ = θᴱ)
 
     model = OceanModel{FT}(prob, cʰ = cʰ)
-    # model = HydrostaticBoussinesqModel{FT}(prob, cʰ = cʰ)
+    # model = OceanModel{FT}(prob, cʰ = cʰ, fₒ = FT(0), β = FT(0) )
 
-    horizontalmodel = HorizontalModel(model)
+#   horizontalmodel = HorizontalModel(model)
 
     barotropicmodel = BarotropicModel(model)
 
     minΔx = Lˣ / Nˣ / (N + 1)
     CFL_gravity = minΔx / model.cʰ
-    dt_fast = 120 # 1 // 2 * minimum([CFL_gravity])
+    dt_fast = 90 # 1 // 2 * minimum([CFL_gravity])
 
     minΔz = H / Nᶻ / (N + 1)
     CFL_viscous = minΔz^2 / model.νᶻ
     CFL_diffusive = minΔz^2 / model.κᶻ
     dt_slow = 1 // 2 * minimum([CFL_diffusive, CFL_viscous])
 
-    dt_slow = dt_fast
+    dt_slow = 90
     nout = ceil(Int64, tout / dt_slow)
     dt_slow = tout / nout
 
@@ -212,15 +215,15 @@ function main()
         CentralNumericalFluxGradient(),
     )
 
-    horizontal_dg = DGModel(
-        horizontalmodel,
-        grid_3D,
-        Rusanov(),
-        CentralNumericalFluxDiffusive(),
-        CentralNumericalFluxGradient();
-        auxstate = dg.auxstate,
-        diffstate = dg.diffstate,
-    )
+#   horizontal_dg = DGModel(
+#       horizontalmodel,
+#       grid_3D,
+#       Rusanov(),
+#       CentralNumericalFluxDiffusive(),
+#       CentralNumericalFluxGradient();
+#       auxstate = dg.auxstate,
+#       diffstate = dg.diffstate,
+#   )
 
     barotropic_dg = DGModel(
         barotropicmodel,
@@ -236,44 +239,44 @@ function main()
 
     Q_2D = init_ode_state(barotropic_dg, FT(0); init_on_cpu = true)
 
+    #=
     lsrk_ocean = LSRK144NiegemannDiehlBusch(dg, Q_3D, dt = dt_slow, t0 = 0)
-    lsrk_horizontal =
-        LSRK144NiegemannDiehlBusch(horizontal_dg, Q_3D, dt = dt_slow, t0 = 0)
+#   lsrk_horizontal =
+#       LSRK144NiegemannDiehlBusch(horizontal_dg, Q_3D, dt = dt_slow, t0 = 0)
     lsrk_barotropic =
         LSRK144NiegemannDiehlBusch(barotropic_dg, Q_2D, dt = dt_fast, t0 = 0)
+    =#
+
+    lsrk_ocean = LSRK54CarpenterKennedy(dg, Q_3D, dt = dt_slow, t0 = 0)
+#   lsrk_horizontal =
+#       LSRK54CarpenterKennedy(horizontal_dg, Q_3D, dt = dt_slow, t0 = 0)
+    lsrk_barotropic =
+        LSRK54CarpenterKennedy(barotropic_dg, Q_2D, dt = dt_fast, t0 = 0)
 
     odesolver = MultistateMultirateRungeKutta(
         lsrk_ocean,
-        lsrk_horizontal,
+#       lsrk_horizontal,
         lsrk_barotropic,
     )
-
-    #=
-    odesolver = MultistateRungeKutta(
-        lsrk_ocean,
-        lsrk_horizontal,
-        lsrk_barotropic,
-    )
-    =#
 
    #-- Set up State Check call back for config state arrays, called every ntFreq time steps
-    ntFreq=15
+    ntFreq=10
     cbcs_dg=CLIMAStateCheck.StateCheck.sccreate(
-            [(Q_3D,"oce Q_3D"),
-             (dg.auxstate,"oce aux"),
-        #    (dg.diffstate,"oce diff"),
-        #    (lsrk_ocean.dQ,"oce_dQ"),
-        #    (dg.modeldata.tendency_dg.auxstate,"tend Int aux"),
-        #    (dg.modeldata.conti3d_Q,"conti3d_Q"),
-             (Q_2D,"baro Q_2D"),
-             (barotropic_dg.auxstate ,"baro aux")
+            [ (Q_3D,"oce Q_3D",),
+              (dg.auxstate,"oce aux",),
+        #     (dg.diffstate,"oce diff",),
+        #     (lsrk_ocean.dQ,"oce_dQ",),
+        #     (dg.modeldata.tendency_dg.auxstate,"tend Int aux",),
+        #     (dg.modeldata.conti3d_Q,"conti3d_Q",),
+              (Q_2D,"baro Q_2D",),
+              (barotropic_dg.auxstate ,"baro aux",)
             ],
-            ntFreq);
-        #    (barotropic_dg.diffstate,"baro diff"),
-        #    (horizontal_dg.auxstate, "horz aux"),
-        #    (horizontal_dg.diffstate,"horz diff"),
-        #    (lsrk_horizontal.dQ,"horz_dQ"),
-        #    (lsrk_barotropic.dQ,"baro_dQ")
+            ntFreq; prec=12)
+        #    (barotropic_dg.diffstate,"baro diff",),
+        #    (horizontal_dg.auxstate, "horz aux",),
+        #    (horizontal_dg.diffstate,"horz diff",),
+        #    (lsrk_horizontal.dQ,"horz_dQ",),
+        #    (lsrk_barotropic.dQ,"baro_dQ",)
     #--
 
     step = [0, 0]

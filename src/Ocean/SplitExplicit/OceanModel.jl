@@ -125,6 +125,7 @@ function vars_aux(m::OceanModel, T)
         pkin::T         # ∫(-αᵀ θ)
         wz0::T          # w at z=0
         ∫u::SVector{2, T}
+        ΔGu::SVector{2, T}
         y::T     # y-coordinate of the box
     end
 end
@@ -174,7 +175,8 @@ end
 @inline viscosity_tensor(m::OceanModel) = Diagonal(@SVector [m.νʰ, m.νʰ, m.νᶻ])
 
 @inline function diffusivity_tensor(m::OceanModel, ∂θ∂z)
-    ∂θ∂z < 0 ? κ = (@SVector [m.κʰ, m.κʰ, 1000 * m.κᶻ]) : κ =
+  # ∂θ∂z < 0 ? κ = (@SVector [m.κʰ, m.κʰ, 1000 * m.κᶻ]) : κ =
+    ∂θ∂z < 0 ? κ = (@SVector [m.κʰ, m.κʰ, 1 * m.κᶻ]) : κ =
         (@SVector [m.κʰ, m.κʰ, m.κᶻ])
 
     return Diagonal(κ)
@@ -331,9 +333,9 @@ end
     t::Real,
 )
     # horizontal viscosity done in horizontal model
-    F.u -= @SVector([0, 0, 1]) * D.ν∇u[3, :]'
+#   F.u -= @SVector([0, 0, 1]) * D.ν∇u[3, :]'
 #- jmc: put back this term to check
-#   F.u -= D.ν∇u
+    F.u -= D.ν∇u
 
     F.θ -= D.κ∇θ
 
@@ -354,6 +356,9 @@ end
         # f × u
         f = coriolis_force(m, A.y)
         S.u -= @SVector [-f * u[2], f * u[1]]
+
+        #- borotropic tendency adjustment
+        S.u += A.ΔGu
 
         # switch this to S.η if you comment out the fast mode in MultistateMultirateRungeKutta
         S.η += A.wz0
