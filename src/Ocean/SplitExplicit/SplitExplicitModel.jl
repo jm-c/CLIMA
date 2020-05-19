@@ -70,7 +70,7 @@ function ocean_init_state! end
 
 include("OceanModel.jl")
 include("Continuity3dModel.jl")
-include("TendencyIntegralModel.jl")
+include("VerticalIntegralModel.jl")
 include("HorizontalModel.jl")
 include("BarotropicModel.jl")
 include("Communication.jl")
