@@ -1,12 +1,13 @@
 import CLIMA.DGmethods:
+    initialize_fast_state!,
     initialize_adjustment!,
-    initialize_fast_from_slow!,
+    tendency_from_slow_to_fast!,
     cummulate_fast_solution!,
     reconcile_from_fast_to_slow!
 
 using CLIMA.DGmethods: basic_grid_info
 
-@inline function initialize_adjustment!(
+@inline function initialize_fast_state!(
     slow::OceanModel,
     fast::BarotropicModel,
     dgSlow,
@@ -14,21 +15,7 @@ using CLIMA.DGmethods: basic_grid_info
     Qslow,
     Qfast,
 )
-    ## reset tendency adjustment before calling Baroclinic Model
-    dgSlow.auxstate.ΔGu .= 0
 
-    return nothing
-end
-
-@inline function initialize_fast_from_slow!(
-    slow::OceanModel,
-    fast::BarotropicModel,
-    dgSlow,
-    dgFast,
-    Qslow,
-    Qfast,
-    dQslow2fast,
-)
     dgFast.auxstate.η_c .= -0
     dgFast.auxstate.U_c .= (@SVector [-0, -0])'
 
@@ -53,6 +40,32 @@ end
     Qfast.η .= reshape(flat_η, Nq^2, 1, nelemh)
   =#
 
+    return nothing
+end
+
+@inline function initialize_adjustment!(
+    slow::OceanModel,
+    fast::BarotropicModel,
+    dgSlow,
+    dgFast,
+    Qslow,
+    Qfast,
+)
+    ## reset tendency adjustment before calling Baroclinic Model
+    dgSlow.auxstate.ΔGu .= 0
+
+    return nothing
+end
+
+@inline function tendency_from_slow_to_fast!(
+    slow::OceanModel,
+    fast::BarotropicModel,
+    dgSlow,
+    dgFast,
+    Qslow,
+    Qfast,
+    dQslow2fast,
+)
     # integrate the tendency
     tendency_dg = dgSlow.modeldata.tendency_dg
     update_aux!(tendency_dg, tendency_dg.balancelaw, dQslow2fast, 0)
@@ -60,7 +73,7 @@ end
     Nq, Nqk, _, _, nelemv, _, nelemh, _ = basic_grid_info(dgSlow)
 
     ## get top value (=integral over full depth) of ∫du
-    boxy_∫du = reshape(tendency_dg.auxstate.∫du, Nq^2, Nq, 2, nelemv, nelemh)
+    boxy_∫du = reshape(tendency_dg.auxstate.∫du, Nq^2, Nqk, 2, nelemv, nelemh)
     flat_∫du = @view boxy_∫du[:, end, :, end, :]
 
     ## copy into Gᵁ of dgFast
@@ -69,7 +82,7 @@ end
     ## scale by -1/H and copy back to ΔGu
     # note: since tendency_dg.auxstate.∫du is not used after this, could be
     #   re-used to store a 3-D copy of "-Gu"
-    boxy_∫gu = reshape(dgSlow.auxstate.ΔGu, Nq^2, Nq, 2, nelemv, nelemh)
+    boxy_∫gu = reshape(dgSlow.auxstate.ΔGu, Nq^2, Nqk, 2, nelemv, nelemh)
     boxy_∫gu .= -reshape(flat_∫du, Nq^2, 1, 2, 1, nelemh) / slow.problem.H
 
     return nothing
@@ -103,18 +116,23 @@ end
     Qfast,
     total_fast_step,
 )
+    Nq, Nqk, _, _, nelemv, _, nelemh, _ = basic_grid_info(dgSlow)
+
     # need to calculate int_u using integral kernels
     # u_slow := u_slow + (1/H) * (u_fast - \int_{-H}^{0} u_slow)
 
     # Compute: \int_{-H}^{0} u_slow)
     ### need to make sure this is stored into aux.∫u
-    indefinite_stack_integral!(dgSlow, slow, Qslow, dgSlow.auxstate, 0)
 
-    Nq, Nqk, _, _, nelemv, _, nelemh, _ = basic_grid_info(dgSlow)
+    # integrate vertically horizontal velocity
+    flowintegral_dg = dgSlow.modeldata.flowintegral_dg
+    update_aux!(flowintegral_dg, flowintegral_dg.balancelaw, Qslow, 0)
+
+    ## get top value (=integral over full depth)
+    boxy_∫u = reshape(flowintegral_dg.auxstate.∫u, Nq^2, Nqk, 2, nelemv, nelemh)
+    flat_∫u = @view boxy_∫u[:, end, :, end, :]
 
     ### substract ∫u from U and divide by H
-    boxy_∫u = reshape(dgSlow.auxstate.∫u, Nq^2, Nq, 2, nelemv, nelemh)
-    flat_∫u = @view boxy_∫u[:, end, :, end, :]
 
     ### Δu is a place holder for 1/H * (Ū - ∫u)
     Δu = dgFast.auxstate.Δu
@@ -131,7 +149,7 @@ end
     ### save eta from 3D model into η_diag (aux var of 2D model)
     ### and store difference between η from Barotropic Model and η_diag
     η_3D = Qslow.η
-    boxy_η_3D = reshape(η_3D, Nq^2, Nq, nelemv, nelemh)
+    boxy_η_3D = reshape(η_3D, Nq^2, Nqk, nelemv, nelemh)
     flat_η = @view boxy_η_3D[:, end, end, :]
     dgFast.auxstate.η_diag .= reshape(flat_η, Nq^2, 1, nelemh)
     dgFast.auxstate.Δη .= dgFast.auxstate.η_c - dgFast.auxstate.η_diag

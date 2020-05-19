@@ -82,10 +82,12 @@ apply no penetration boundary for temperature
     t,
 )
     u⁻ = Q⁻.u
+    ud⁻ = A⁻.u_d
     n = @SVector [n⁻[1], n⁻[2]]
 
     # Q⁺.u = u⁻ - (n⋅u⁻) * n
     Q⁺.u = u⁻ - (n∘u⁻) * n
+    A⁺.u_d = ud⁻ - (n∘ud⁻) * n
 
     return nothing
 end
@@ -216,6 +218,7 @@ apply no penetration boundary for temperature
 )
     FT = eltype(Q⁺)
     Q⁺.u = SVector(-zero(FT), -zero(FT))
+    A⁺.u_d = SVector(-zero(FT), -zero(FT))
 
     return nothing
 end
@@ -257,6 +260,7 @@ apply no penetration boundary for temperature
     t,
 )
     Q⁺.u = -Q⁻.u
+    A⁺.u_d = -A⁻.u_d
 
     D⁺.κ∇θ = -D⁻.κ∇θ
 

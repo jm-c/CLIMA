@@ -68,8 +68,7 @@ end
 
 @inline function viscosity_tensor(bm::BarotropicModel)
     m = bm.baroclinic
-    # return Diagonal(@SVector [m.νʰ, m.νʰ, 0])
-    return Diagonal(@SVector [ 0, 0, 0])
+    return Diagonal(@SVector [m.νʰ, m.νʰ, 0])
 end
 
 vars_integrals(m::BarotropicModel, T) = @vars()

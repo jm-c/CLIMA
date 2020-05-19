@@ -69,6 +69,14 @@ function OceanDGModel(
     vert_filter = CutoffFilter(grid, polynomialorder(grid) - 1)
     exp_filter = ExponentialFilter(grid, 1, 8)
 
+    flowintegral_dg = DGModel(
+        FlowIntegralModel(bl),
+        grid,
+        numfluxnondiff,
+        numfluxdiff,
+        gradnumflux,
+    )
+
     tendency_dg = DGModel(
         TendencyIntegralModel(bl),
         grid,
@@ -90,6 +98,7 @@ function OceanDGModel(
     modeldata = (
         vert_filter = vert_filter,
         exp_filter = exp_filter,
+        flowintegral_dg = flowintegral_dg,
         tendency_dg = tendency_dg,
         conti3d_dg = conti3d_dg,
         conti3d_Q = conti3d_Q,
@@ -124,7 +133,7 @@ function vars_aux(m::OceanModel, T)
         w::T
         pkin::T         # ∫(-αᵀ θ)
         wz0::T          # w at z=0
-        ∫u::SVector{2, T}
+        u_d::SVector{2, T}  # velocity deviation from vertical mean
         ΔGu::SVector{2, T}
         y::T     # y-coordinate of the box
     end
@@ -137,12 +146,14 @@ end
 function vars_gradient(m::OceanModel, T)
     @vars begin
         u::SVector{2, T}
+        ud::SVector{2, T}
         θ::T
     end
 end
 
 @inline function gradvariables!(m::OceanModel, G::Vars, Q::Vars, A, t)
     G.u = Q.u
+    G.ud = A.u_d
     G.θ = Q.θ
 
     return nothing
@@ -164,7 +175,12 @@ end
     t,
 )
     ν = viscosity_tensor(m)
-    D.ν∇u = ν * G.u
+#   D.ν∇u = ν * G.u
+    D.ν∇u = @SMatrix [
+              m.νʰ * G.ud[1, 1]  m.νʰ * G.ud[1, 2]
+              m.νʰ * G.ud[2, 1]  m.νʰ * G.ud[2, 2]
+              m.νᶻ * G.u[3, 1]   m.νᶻ * G.u[3, 2]
+            ]
 
     κ = diffusivity_tensor(m, G.θ[3])
     D.κ∇θ = κ * G.θ
@@ -192,7 +208,7 @@ function vars_integrals(m::OceanModel, T)
     @vars begin
         ∇hu::T
         αᵀθ::T
-        ∫u::SVector{2, T}
+#       ∫u::SVector{2, T}
     end
 end
 
@@ -211,7 +227,7 @@ A -> array of aux variables
 @inline function integral_load_aux!(m::OceanModel, I::Vars, Q::Vars, A::Vars)
     I.∇hu = A.w # borrow the w value from A...
     I.αᵀθ = -m.αᵀ * Q.θ # integral will be reversed below
-    I.∫u = Q.u
+#   I.∫u = Q.u
 
     return nothing
 end
@@ -230,7 +246,7 @@ I -> array of integrand variables
 @inline function integral_set_aux!(m::OceanModel, A::Vars, I::Vars)
     A.w = I.∇hu
     A.pkin = I.αᵀθ
-    A.∫u = I.∫u
+#   A.∫u = I.∫u
 
     return nothing
 end
@@ -370,6 +386,7 @@ end
 @inline coriolis_force(m::OceanModel, y) = m.fₒ + m.β * y
 
 function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
+    A = dg.auxstate
     MD = dg.modeldata
 
     # required to ensure that after integration velocity field is divergence free
@@ -382,6 +399,8 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
     apply!(Q, (4,), dg.grid, exp_filter, VerticalDirection())
 
 #----------
+    # Compute Divergence of Horizontal Flow field using "conti3d_dg" DGmodel
+
     conti3d_dg = dg.modeldata.conti3d_dg
     # ct3d_Q = dg.modeldata.conti3d_Q
     # ct3d_dQ = similar(ct3d_Q)
@@ -391,12 +410,11 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
 
     ct3d_bl = conti3d_dg.balancelaw
 
-    # Compute Divergence of Horizontal Flow field using "conti3d_dg" DGmodel
+    # call "conti3d_dg" DGmodel
     # note: with "increment = false", just return tendency (no state update)
     p = nothing
     conti3d_dg(ct3d_dQ, Q, p, t; increment = false)
 
-    A = dg.auxstate
     # Copy from ct3d_dQ.θ which is realy ∇h•u into A.w (which will be integrated)
     function f!(::OceanModel, dQ, A, t)
         @inbounds begin
@@ -412,6 +430,27 @@ function update_aux!(dg::DGModel, m::OceanModel, Q::MPIStateArray, t::Real)
 
     # copy down wz0
     copy_stack_field_down!(dg, m, A, 1, 3)
+
+#----------
+    # Compute Horizontal Flow deviation from vertical mean
+
+    Nq, Nqk, _, _, nelemv, _, nelemh, _ = basic_grid_info(dg)
+
+    flowintegral_dg = dg.modeldata.flowintegral_dg
+    update_aux!(flowintegral_dg, flowintegral_dg.balancelaw, Q, 0)
+
+    ## get top value (=integral over full depth)
+    boxy_∫u = reshape(flowintegral_dg.auxstate.∫u, Nq^2, Nqk, 2, nelemv, nelemh)
+    flat_∫u = @view boxy_∫u[:, end, :, end, :]
+    boxy_ub = reshape(flat_∫u, Nq^2, 1, 2, 1, nelemh)
+
+    ## make a copy of horizontal velocity
+    A.u_d .= Q.u
+
+    ## and remove vertical mean velocity
+    boxy_ud = reshape(A.u_d, Nq^2, Nqk, 2, nelemv, nelemh)
+    boxy_ud .-= boxy_ub / m.problem.H
+#----------
 
     return true
 end

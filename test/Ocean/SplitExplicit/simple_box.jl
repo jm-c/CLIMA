@@ -105,7 +105,7 @@ function ocean_init_aux!(m::OceanModel, p::SimpleBox, A, geom)
     A.w = -0
     A.pkin = -0
     A.wz0 = -0
-    A.∫u = @SVector [-0, -0]
+    A.u_d = @SVector [-0, -0]
     A.ΔGu = @SVector [-0, -0]
 
     return nothing
@@ -171,6 +171,7 @@ function main()
 
     model = OceanModel{FT}(prob, cʰ = cʰ)
     # model = OceanModel{FT}(prob, cʰ = cʰ, fₒ = FT(0), β = FT(0) )
+    # model = OceanModel{FT}(prob, cʰ = cʰ, νʰ = FT(0), fₒ = FT(0), β = FT(0) )
 
 #   horizontalmodel = HorizontalModel(model)
 
@@ -215,16 +216,6 @@ function main()
         CentralNumericalFluxGradient(),
     )
 
-#   horizontal_dg = DGModel(
-#       horizontalmodel,
-#       grid_3D,
-#       Rusanov(),
-#       CentralNumericalFluxDiffusive(),
-#       CentralNumericalFluxGradient();
-#       auxstate = dg.auxstate,
-#       diffstate = dg.diffstate,
-#   )
-
     barotropic_dg = DGModel(
         barotropicmodel,
         grid_2D,
@@ -241,15 +232,11 @@ function main()
 
     #=
     lsrk_ocean = LSRK144NiegemannDiehlBusch(dg, Q_3D, dt = dt_slow, t0 = 0)
-#   lsrk_horizontal =
-#       LSRK144NiegemannDiehlBusch(horizontal_dg, Q_3D, dt = dt_slow, t0 = 0)
     lsrk_barotropic =
         LSRK144NiegemannDiehlBusch(barotropic_dg, Q_2D, dt = dt_fast, t0 = 0)
     =#
 
     lsrk_ocean = LSRK54CarpenterKennedy(dg, Q_3D, dt = dt_slow, t0 = 0)
-#   lsrk_horizontal =
-#       LSRK54CarpenterKennedy(horizontal_dg, Q_3D, dt = dt_slow, t0 = 0)
     lsrk_barotropic =
         LSRK54CarpenterKennedy(barotropic_dg, Q_2D, dt = dt_fast, t0 = 0)
 
@@ -389,6 +376,8 @@ vtkpath = "vtk_split"
 
 const timeend = 6 * 3600   # s
 const tout = 3600 # s
+#const timeend = 360   # s
+#const tout = 90 # s
 
 const N = 4
 const Nˣ = 20
@@ -406,6 +395,7 @@ const cʰ = sqrt(grav * H)
 const cᶻ = 0
 
 const τₒ = 1e-1  # (m/s)^2
+#const τₒ = 0
 const λʳ = 10 // 86400 # m / s
 const θᴱ = 10    # K
 
