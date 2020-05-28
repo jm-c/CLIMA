@@ -171,46 +171,50 @@ function main()
 
     model = OceanModel{FT}(prob, cʰ = cʰ)
     # model = OceanModel{FT}(prob, cʰ = cʰ, fₒ = FT(0), β = FT(0) )
+    # model = OceanModel{FT}(prob, cʰ = cʰ, νʰ = FT(1e3), νᶻ = FT(1e-3) )
     # model = OceanModel{FT}(prob, cʰ = cʰ, νʰ = FT(0), fₒ = FT(0), β = FT(0) )
 
 #   horizontalmodel = HorizontalModel(model)
 
     barotropicmodel = BarotropicModel(model)
 
-    minΔx = Lˣ / Nˣ / (N + 1)
-    CFL_gravity = minΔx / model.cʰ
-    dt_fast = 90 # 1 // 2 * minimum([CFL_gravity])
+    minΔx = min_node_distance(grid_3D, HorizontalDirection())
+    minΔz = min_node_distance(grid_3D, VerticalDirection())
+    #- 2 horiz directions
+    gravity_max_dT = 1 / ( 2 * sqrt(grav * H) / minΔx )
+    dt_fast = 300 # minimum([gravity_max_dT])
 
-    minΔz = H / Nᶻ / (N + 1)
-    CFL_viscous = minΔz^2 / model.νᶻ
-    CFL_diffusive = minΔz^2 / model.κᶻ
-    dt_slow = 1 // 2 * minimum([CFL_diffusive, CFL_viscous])
+    #- 2 horiz directions + harmonic visc or diffusion: 2^2 factor in CFL:
+    viscous_max_dT = 1 / ( 2 * model.νʰ / minΔx^2 + model.νᶻ / minΔz^2 )/ 4
+    diffusive_max_dT = 1 / ( 2 * model.κʰ / minΔx^2 + model.κᶻ / minΔz^2 )/ 4
+    dt_slow = minimum([diffusive_max_dT, viscous_max_dT])
 
-    dt_slow = 90
+    dt_slow = 300
     nout = ceil(Int64, tout / dt_slow)
     dt_slow = tout / nout
 
     @info @sprintf(
         """Update
-           Gravity CFL   = %.1f
-           Timestep      = %.1f""",
-        CFL_gravity,
+           Gravity Max-dT = %.1f
+           Timestep       = %.1f""",
+        gravity_max_dT,
         dt_fast
     )
 
     @info @sprintf(
         """Update
-       Viscous CFL   = %.1f
-       Diffusive CFL = %.1f
+       Viscous   Max-dT = %.1f
+       Diffusive Max-dT = %.1f
        Timestep      = %.1f""",
-        CFL_viscous,
-        CFL_diffusive,
+        viscous_max_dT,
+        diffusive_max_dT,
         dt_slow
     )
 
     dg = OceanDGModel(
         model,
         grid_3D,
+    #   CentralNumericalFluxNonDiffusive(),
         Rusanov(),
         CentralNumericalFluxDiffusive(),
         CentralNumericalFluxGradient(),
@@ -219,6 +223,7 @@ function main()
     barotropic_dg = DGModel(
         barotropicmodel,
         grid_2D,
+    #   CentralNumericalFluxNonDiffusive(),
         Rusanov(),
         CentralNumericalFluxDiffusive(),
         CentralNumericalFluxGradient(),
@@ -247,7 +252,7 @@ function main()
     )
 
    #-- Set up State Check call back for config state arrays, called every ntFreq time steps
-    ntFreq=10
+    ntFreq=3
     cbcs_dg=CLIMAStateCheck.StateCheck.sccreate(
             [ (Q_3D,"oce Q_3D",),
               (dg.auxstate,"oce aux",),
@@ -376,8 +381,8 @@ vtkpath = "vtk_split"
 
 const timeend = 6 * 3600   # s
 const tout = 3600 # s
-#const timeend = 360   # s
-#const tout = 90 # s
+#const timeend = 600   # s
+#const tout = 600 # s
 
 const N = 4
 const Nˣ = 20
@@ -391,7 +396,8 @@ xrange = range(FT(0); length = Nˣ + 1, stop = Lˣ)
 yrange = range(FT(0); length = Nʸ + 1, stop = Lʸ)
 zrange = range(FT(-H); length = Nᶻ + 1, stop = 0)
 
-const cʰ = sqrt(grav * H)
+#const cʰ = sqrt(grav * H)
+const cʰ = 1  # typical of ocean internal-wave speed
 const cᶻ = 0
 
 const τₒ = 1e-1  # (m/s)^2
