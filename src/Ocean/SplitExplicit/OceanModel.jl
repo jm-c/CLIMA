@@ -40,6 +40,7 @@ struct OceanModel{P, T} <: AbstractOceanModel
 end
 
 function calculate_dt(grid, model::OceanModel, Courant_number)
+  #=
     minΔx = min_node_distance(grid, HorizontalDirection())
     minΔz = min_node_distance(grid, VerticalDirection())
 
@@ -48,6 +49,9 @@ function calculate_dt(grid, model::OceanModel, Courant_number)
     CFL_viscous = minΔz^2 / model.νᶻ
 
     dt = 1 // 2 * minimum([CFL_gravity, CFL_diffusive, CFL_viscous])
+  =#
+    FT = eltype(grid)
+    dt = FT(1)
 
     return dt
 end
