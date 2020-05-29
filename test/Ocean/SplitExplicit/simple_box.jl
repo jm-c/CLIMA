@@ -51,7 +51,7 @@ struct SimpleBox{T} <: AbstractOceanProblem
 end
 
 @inline function ocean_boundary_state!(
-    m::Union{OceanModel, HorizontalModel},
+    m::OceanModel,
     p::SimpleBox,
     bctype,
     x...,
@@ -174,21 +174,20 @@ function main()
     # model = OceanModel{FT}(prob, cʰ = cʰ, νʰ = FT(1e3), νᶻ = FT(1e-3) )
     # model = OceanModel{FT}(prob, cʰ = cʰ, νʰ = FT(0), fₒ = FT(0), β = FT(0) )
 
-#   horizontalmodel = HorizontalModel(model)
-
     barotropicmodel = BarotropicModel(model)
 
     minΔx = min_node_distance(grid_3D, HorizontalDirection())
     minΔz = min_node_distance(grid_3D, VerticalDirection())
     #- 2 horiz directions
     gravity_max_dT = 1 / ( 2 * sqrt(grav * H) / minΔx )
-    dt_fast = 300 # minimum([gravity_max_dT])
+    dt_fast = minimum([gravity_max_dT])
 
     #- 2 horiz directions + harmonic visc or diffusion: 2^2 factor in CFL:
     viscous_max_dT = 1 / ( 2 * model.νʰ / minΔx^2 + model.νᶻ / minΔz^2 )/ 4
     diffusive_max_dT = 1 / ( 2 * model.κʰ / minΔx^2 + model.κᶻ / minΔz^2 )/ 4
     dt_slow = minimum([diffusive_max_dT, viscous_max_dT])
 
+    dt_fast = 300
     dt_slow = 300
     nout = ceil(Int64, tout / dt_slow)
     dt_slow = tout / nout
@@ -247,7 +246,6 @@ function main()
 
     odesolver = MultistateMultirateRungeKutta(
         lsrk_ocean,
-#       lsrk_horizontal,
         lsrk_barotropic,
     )
 
@@ -265,9 +263,6 @@ function main()
             ],
             ntFreq; prec=12)
         #    (barotropic_dg.diffstate,"baro diff",),
-        #    (horizontal_dg.auxstate, "horz aux",),
-        #    (horizontal_dg.diffstate,"horz diff",),
-        #    (lsrk_horizontal.dQ,"horz_dQ",),
         #    (lsrk_barotropic.dQ,"baro_dQ",)
     #--
 
@@ -379,7 +374,7 @@ end
 FT = Float64
 vtkpath = "vtk_split"
 
-const timeend = 6 * 3600   # s
+const timeend = 24 * 3600   # s
 const tout = 3600 # s
 #const timeend = 600   # s
 #const tout = 600 # s
