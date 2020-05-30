@@ -119,6 +119,8 @@ function ocean_init_aux!(
     A,
     geom,
 )
+    @inbounds A.y = geom.coord[2]
+
     A.Gᵁ = @SVector [-0, -0]
     A.U_c = @SVector [-0, -0]
     A.η_c = -0

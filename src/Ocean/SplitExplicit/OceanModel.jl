@@ -374,11 +374,13 @@ end
     t::Real,
 )
     @inbounds begin
-        u = Q.u # Horizontal components of velocity
+        u = Q.u    # Horizontal components of velocity
+        ud = A.u_d # Horizontal velocity deviation from vertical mean
 
         # f × u
         f = coriolis_force(m, A.y)
-        S.u -= @SVector [-f * u[2], f * u[1]]
+      # S.u -= @SVector [-f * u[2], f * u[1]]
+        S.u -= @SVector [-f * ud[2], f * ud[1]]
 
         #- borotropic tendency adjustment
         S.u += A.ΔGu

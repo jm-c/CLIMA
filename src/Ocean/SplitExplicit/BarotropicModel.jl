@@ -28,6 +28,7 @@ function vars_aux(m::BarotropicModel, T)
         Δu::SVector{2, T}  # reconciliation adjustment to u, Δu = 1/H * (U_averaged - ∫u)
         η_diag::T          # η from baroclinic model (for diagnostic)
         Δη::T              # diagnostic difference: η_barotropic - η_baroclinic
+        y::T               # y-coordinate of grid
     end
 end
 
@@ -120,6 +121,13 @@ end
     t::Real,
 )
     @inbounds begin
+        U = Q.U
+
+        # f × u
+        f = coriolis_force(m.baroclinic, A.y)
+        S.U -= @SVector [-f * U[2], f * U[1]]
+
+        # vertically integrated baroclinic model tendency
         S.U += A.Gᵁ
     end
 end
