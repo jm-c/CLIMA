@@ -3,6 +3,7 @@ struct OceanModel{P, T} <: AbstractOceanModel
     ρₒ::T
     cʰ::T
     cᶻ::T
+    add_fast_substeps::T
     αᵀ::T
     νʰ::T
     νᶻ::T
@@ -15,6 +16,7 @@ struct OceanModel{P, T} <: AbstractOceanModel
         ρₒ = FT(1000),  # kg / m^3
         cʰ = FT(0),     # m/s
         cᶻ = FT(0),     # m/s
+        add_fast_substeps = 0,
         αᵀ = FT(2e-4),  # (m/s)^2 / K
         νʰ = FT(5e3),   # m^2 / s
         νᶻ = FT(5e-3),  # m^2 / s
@@ -28,6 +30,7 @@ struct OceanModel{P, T} <: AbstractOceanModel
             ρₒ,
             cʰ,
             cᶻ,
+            add_fast_substeps,
             αᵀ,
             νʰ,
             νᶻ,

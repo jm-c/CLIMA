@@ -122,8 +122,8 @@ function ocean_init_aux!(
     A.Gᵁ = @SVector [-0, -0]
     A.U_c = @SVector [-0, -0]
     A.η_c = -0
-#   A.U_s = @SVector [-0, -0]
-#   A.η_s = -0
+    A.U_s = @SVector [-0, -0]
+    A.η_s = -0
     A.Δu = @SVector [-0, -0]
     A.η_diag = -0
     A.Δη = -0
@@ -169,7 +169,7 @@ function main()
     prob = SimpleBox{FT}(Lˣ, Lʸ, H, τₒ, λʳ, θᴱ)
     # prob = OceanGyre{FT}(Lˣ, Lʸ, H, τₒ = τₒ, λʳ = λʳ, θᴱ = θᴱ)
 
-    model = OceanModel{FT}(prob, cʰ = cʰ)
+    model = OceanModel{FT}(prob, cʰ = cʰ )
     # model = OceanModel{FT}(prob, cʰ = cʰ, fₒ = FT(0), β = FT(0) )
     # model = OceanModel{FT}(prob, cʰ = cʰ, νʰ = FT(1e3), νᶻ = FT(1e-3) )
     # model = OceanModel{FT}(prob, cʰ = cʰ, νʰ = FT(0), fₒ = FT(0), β = FT(0) )
@@ -250,7 +250,7 @@ function main()
     )
 
    #-- Set up State Check call back for config state arrays, called every ntFreq time steps
-    ntFreq=3
+    ntFreq=4
     cbcs_dg=CLIMAStateCheck.StateCheck.sccreate(
             [ (Q_3D,"oce Q_3D",),
               (dg.auxstate,"oce aux",),
@@ -374,9 +374,9 @@ end
 FT = Float64
 vtkpath = "vtk_split"
 
-const timeend = 24 * 3600   # s
-const tout = 3600 # s
-#const timeend = 600   # s
+const timeend = 24 * 3600 # s
+const tout = 2 * 3600 # s
+#const timeend = 1200 # s
 #const tout = 600 # s
 
 const N = 4
@@ -394,6 +394,11 @@ zrange = range(FT(-H); length = Nᶻ + 1, stop = 0)
 #const cʰ = sqrt(grav * H)
 const cʰ = 1  # typical of ocean internal-wave speed
 const cᶻ = 0
+
+#- inverse ratio of additional fast time steps (for weighted average)
+#  --> do 1/add more time-steps and average from: 1 - 1/add up to: 1 + 1/add
+# e.g., = 1 --> 100% more ; = 2 --> 50% more ; = 3 --> 33% more ...
+# add_fast_substeps = 0
 
 const τₒ = 1e-1  # (m/s)^2
 #const τₒ = 0

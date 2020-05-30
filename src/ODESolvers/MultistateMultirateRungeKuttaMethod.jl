@@ -112,13 +112,22 @@ function ODEs.dostep!(
     groupsize = 256
 
     for slow_s in 1:length(slow.RKA)
-        # Currnent slow state time
+        # Current slow state time
         slow_stage_time = time + slow.RKC[slow_s] * slow_dt
 
-        # initialize fast model
-        total_fast_step = 0
-        initialize_fast_state!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast)
+        # Fractional time for slow stage
+        if slow_s == length(slow.RKA)
+            fract_dt = ( 1 - slow.RKC[slow_s] ) * slow_dt
+        else
+            fract_dt = ( slow.RKC[slow_s + 1] - slow.RKC[slow_s] ) * slow_dt
+        end
 
+        # Initialize fast model and set time-step and number of substeps we need
+        fast_steps=[0 0 0]
+        FT = typeof(slow_dt)
+        fast_time_rec=[ODEs.getdt(fast) FT(0)]
+        initialize_fast_state!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast,
+                               fract_dt, fast_time_rec, fast_steps )
         # Initialize tentency adjustment before evalution of slow mode
         initialize_adjustment!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast)
 
@@ -158,17 +167,9 @@ function ODEs.dostep!(
         )
         wait(device(Qslow), event)
 
-        # Fractional time for slow stage
-        if slow_s == length(slow.RKA)
-            γ = 1 - slow.RKC[slow_s]
-        else
-            γ = slow.RKC[slow_s + 1] - slow.RKC[slow_s]
-        end
-
         # Determine number of substeps we need
-        fast_dt = ODEs.getdt(fast)
-        nsubsteps = fast_dt > 0 ? ceil(Int, γ * slow_dt / ODEs.getdt(fast)) : 1
-        fast_dt = γ * slow_dt / nsubsteps
+        fast_dt = fast_time_rec[1]
+        nsubsteps = fast_steps[3]
 
         for substep in 1:nsubsteps
             fast_time = slow_stage_time + (substep - 1) * fast_dt
@@ -180,9 +181,8 @@ function ODEs.dostep!(
                 Qfast,
                 fast_time,
                 fast_dt,
-                total_fast_step,
+                substep, fast_steps, fast_time_rec,
             )
-            total_fast_step += 1
         end
 
         # reconcile slow equation using fast equation
@@ -193,7 +193,7 @@ function ODEs.dostep!(
             fast.rhs!,
             Qslow,
             Qfast,
-            total_fast_step,
+            fast_time_rec,
         )
 
     end

@@ -6,6 +6,7 @@ import CLIMA.DGmethods:
     reconcile_from_fast_to_slow!
 
 using CLIMA.DGmethods: basic_grid_info
+#using Printf
 
 @inline function initialize_fast_state!(
     slow::OceanModel,
@@ -14,14 +15,38 @@ using CLIMA.DGmethods: basic_grid_info
     dgFast,
     Qslow,
     Qfast,
+    slow_dt, fast_time_rec, fast_steps
 )
+
+    #- inverse ratio of additional fast time steps (for weighted average)
+    #  --> do 1/add more time-steps and average from: 1 - 1/add up to: 1 + 1/add
+    add = slow.add_fast_substeps
+
+    #- set time-step and number of sub-steps we need
+    #  will time-average fast over: fast_steps[1] , fast_steps[3]
+    #  centered on fast_steps[2] which corresponds to advance in time of slow
+    fast_dt = fast_time_rec[1]
+    if add == 0
+        steps = fast_dt > 0 ? ceil(Int, slow_dt / fast_dt ) : 1
+        fast_steps[1:3] = [1 1 1] * steps
+    else
+        steps = fast_dt > 0 ? ceil(Int, slow_dt / fast_dt / add ) : 1
+        fast_steps[2] = add * steps
+        fast_steps[1] = ( add - 1 ) * steps
+        fast_steps[3] = ( add + 1 ) * steps
+    end
+    fast_time_rec[1] = slow_dt / fast_steps[2]
+    fast_time_rec[2] = 0.
+   # @printf("Update: frac_dt = %.1f , dt_fast = %.1f , nsubsteps= %i\n",
+   #          slow_dt,fast_time_rec[1],fast_steps[3])
+   # println(" fast_steps = ",fast_steps)
 
     dgFast.auxstate.η_c .= -0
     dgFast.auxstate.U_c .= (@SVector [-0, -0])'
 
     # preliminary test: no average
-#   dgFast.auxstate.η_s .= Qfast.η
-#   dgFast.auxstate.U_s .= Qfast.U
+    Qfast.η .= dgFast.auxstate.η_s
+    Qfast.U .= dgFast.auxstate.U_s
 
   #=
     # copy η and U from 3D equation
@@ -94,15 +119,23 @@ end
     Qfast,
     fast_time,
     fast_dt,
-    total_fast_step,
+    substep, fast_steps, fast_time_rec,
 )
     #- might want to use some of the weighting factors: weights_η & weights_U
     #- should account for case where fast_dt < fast.param.dt
-    # total_fast_step += 1  # now done outside since Integer are passed by value !!!
 
     # cumulate Fast solution:
-    dgFast.auxstate.U_c .+= Qfast.U
-    dgFast.auxstate.η_c .= Qfast.η
+    if substep >= fast_steps[1]
+      dgFast.auxstate.U_c .+= Qfast.U
+      dgFast.auxstate.η_c .+= Qfast.η
+      fast_time_rec[2] += 1.
+    end
+
+    # save mid-point solution to start from the next time-step
+    if substep == fast_steps[2]
+      dgFast.auxstate.U_s .= Qfast.U
+      dgFast.auxstate.η_s .= Qfast.η
+    end
 
     return nothing
 end
@@ -114,7 +147,7 @@ end
     dgFast,
     Qslow,
     Qfast,
-    total_fast_step,
+    fast_time_rec,
 )
     Nq, Nqk, _, _, nelemv, _, nelemh, _ = basic_grid_info(dgSlow)
 
@@ -132,12 +165,15 @@ end
     boxy_∫u = reshape(flowintegral_dg.auxstate.∫u, Nq^2, Nqk, 2, nelemv, nelemh)
     flat_∫u = @view boxy_∫u[:, end, :, end, :]
 
+    ## get time weighted averaged out of cumulative arrays
+    dgFast.auxstate.U_c .*= 1 / fast_time_rec[2]
+    dgFast.auxstate.η_c .*= 1 / fast_time_rec[2]
+
     ### substract ∫u from U and divide by H
 
     ### Δu is a place holder for 1/H * (Ū - ∫u)
     Δu = dgFast.auxstate.Δu
-    Δu .= 1 / slow.problem.H * (Qfast.U - flat_∫u)
- #  Δu .= 1 / slow.problem.H * (dgFast.auxstate.U_c / total_fast_step - flat_∫u)
+    Δu .= 1 / slow.problem.H * (dgFast.auxstate.U_c - flat_∫u)
 
     ### copy the 2D contribution down the 3D solution
     ### need to reshape these things for the broadcast
@@ -156,7 +192,7 @@ end
 
     ### copy 2D eta over to 3D model
     boxy_η_2D = reshape(dgFast.auxstate.η_c, Nq^2, 1, 1, nelemh)
-  # boxy_η_3D .= boxy_η_2D
+    boxy_η_3D .= boxy_η_2D
 
     return nothing
 end

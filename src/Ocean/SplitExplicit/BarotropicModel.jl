@@ -23,8 +23,8 @@ function vars_aux(m::BarotropicModel, T)
         Gᵁ::SVector{2, T}  # integral of baroclinic tendency
         U_c::SVector{2, T} # cumulate U value over fast time-steps
         η_c::T             # cumulate η value over fast time-steps
-#       U_s::SVector{2, T} # starting U field value
-#       η_s::T             # starting η field value
+        U_s::SVector{2, T} # starting U field value
+        η_s::T             # starting η field value
         Δu::SVector{2, T}  # reconciliation adjustment to u, Δu = 1/H * (U_averaged - ∫u)
         η_diag::T          # η from baroclinic model (for diagnostic)
         Δη::T              # diagnostic difference: η_barotropic - η_baroclinic
