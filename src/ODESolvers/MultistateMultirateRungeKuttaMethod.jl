@@ -3,6 +3,7 @@ using CLIMA.DGmethods:
     initialize_adjustment!,
     tendency_from_slow_to_fast!,
     cummulate_fast_solution!,
+    cummulate_last_solution!,
     reconcile_from_fast_to_slow!
 
 include("MultirateRungeKuttaMethod_kernels.jl")
@@ -109,6 +110,22 @@ function ODEs.dostep!(
     slow_bl = slow.rhs!.balancelaw
     fast_bl = fast.rhs!.balancelaw
 
+    FT = typeof(slow_dt)
+
+    #- get the RK weight that apply to each RK tendency in the final solution
+    rkW = zeros(FT, length(slow.RKA))
+    rkW .= slow.RKB
+    for s in length(slow.RKA):-1:2
+        rkW[s-1] += slow.RKA[s] * rkW[s]
+    end
+
+    # Initialize fast model and set time-step and number of substeps we need
+    fast_dt_in = ODEs.getdt(fast)
+    fast_time_rec = zeros(FT, 7)
+    fast_steps = [0 0]
+    initialize_fast_state!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast,
+                           slow_dt, fast_time_rec, fast_steps )
+
     groupsize = 256
 
     for slow_s in 1:length(slow.RKA)
@@ -116,20 +133,14 @@ function ODEs.dostep!(
         slow_stage_time = time + slow.RKC[slow_s] * slow_dt
 
         # Fractional time for slow stage
-        if slow_s == length(slow.RKA)
-            fract_dt = ( 1 - slow.RKC[slow_s] ) * slow_dt
-        else
-            fract_dt = ( slow.RKC[slow_s + 1] - slow.RKC[slow_s] ) * slow_dt
-        end
+        last_step = slow_s == length(slow.RKA) ? true : false
+        fract_dt = rkW[slow_s] * slow_dt
 
-        # Initialize fast model and set time-step and number of substeps we need
-        fast_steps=[0 0 0]
-        FT = typeof(slow_dt)
-        fast_time_rec=[ODEs.getdt(fast) FT(0)]
-        initialize_fast_state!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast,
-                               fract_dt, fast_time_rec, fast_steps )
         # Initialize tentency adjustment before evalution of slow mode
-        initialize_adjustment!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast)
+        # and set time-step and number of substeps we need
+        fast_time_rec[1] = fast_dt_in
+        initialize_adjustment!(slow_bl, fast_bl, slow.rhs!, fast.rhs!, Qslow, Qfast,
+                               last_step, fract_dt, fast_time_rec, fast_steps )
 
         # Evaluate the slow mode
         # --> save tendency for the fast
@@ -169,24 +180,40 @@ function ODEs.dostep!(
 
         # Determine number of substeps we need
         fast_dt = fast_time_rec[1]
-        nsubsteps = fast_steps[3]
+        nsubsteps = fast_steps[2]
 
-        for substep in 1:nsubsteps
-            fast_time = slow_stage_time + (substep - 1) * fast_dt
-            ODEs.dostep!(Qfast, fast, param, fast_time, fast_dt)
-            #  ---> need to cumulate U at this time (and not at each RKB sub-time-step)
+        for substep in 0:nsubsteps-1
+          # fast_time = slow_stage_time + substep * fast_dt
+            fast_time = time + fast_time_rec[2]
+            # cumulate fast solution
             cummulate_fast_solution!(
                 fast_bl,
                 fast.rhs!,
                 Qfast,
-                fast_time,
                 fast_dt,
                 substep, fast_steps, fast_time_rec,
             )
+
+            #-- step forward fast model and update time-record
+            ODEs.dostep!(Qfast, fast, param, fast_time, fast_dt)
+            fast_time_rec[2] += fast_dt
         end
 
-        # reconcile slow equation using fast equation
-        reconcile_from_fast_to_slow!(
+    end
+
+    # add last fast solution to cumulate
+    fast_dt = fast_time_rec[1]
+    nsubsteps = fast_steps[2]
+    cummulate_last_solution!(
+            fast_bl,
+            fast.rhs!,
+            Qfast,
+            fast_dt,
+            nsubsteps, fast_steps, fast_time_rec,
+    )
+
+    # reconcile slow equation using fast equation
+    reconcile_from_fast_to_slow!(
             slow_bl,
             fast_bl,
             slow.rhs!,
@@ -194,8 +221,7 @@ function ODEs.dostep!(
             Qslow,
             Qfast,
             fast_time_rec,
-        )
+    )
 
-    end
     return nothing
 end

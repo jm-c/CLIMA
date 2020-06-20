@@ -74,6 +74,7 @@ function initialize_fast_state! end
 function initialize_adjustment! end
 function tendency_from_slow_to_fast! end
 function cummulate_fast_solution! end
+function cummulate_last_solution! end
 function reconcile_from_fast_to_slow! end
 #- old one (not used anymore):
 function pass_tendency_from_slow_to_fast! end
@@ -90,7 +91,6 @@ function calculate_dt(dg, model, Q, Courant_number, direction)
     CFL = courant(nondiffusive_courant, dg, model, Q, Δt, direction)
     return Courant_number / CFL
 end
-
 
 function create_state(bl::BalanceLaw, grid, commtag)
     topology = grid.topology

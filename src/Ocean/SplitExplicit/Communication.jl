@@ -3,10 +3,27 @@ import CLIMA.DGmethods:
     initialize_adjustment!,
     tendency_from_slow_to_fast!,
     cummulate_fast_solution!,
+    cummulate_last_solution!,
     reconcile_from_fast_to_slow!
 
 using CLIMA.DGmethods: basic_grid_info
 #using Printf
+
+"""
+Use vector 'fast_time_rec' to store fast-model time record:
+      fast_time_rec[1] = adjusted fast_dt
+      fast_time_rec[2] = local time advance of fast-model in this "dostep"
+                         (i.e., relative to "time", the starting time of full time-step):
+                         fast_time = time + fast_time_rec[2]
+      fast_time_rec[3] = time to start averaging
+      fast_time_rec[4] = time to  end  averaging
+      fast_time_rec[5] = cumulated time-weights
+      fast_time_rec[6] = partial weight for next fast solution
+      fast_time_rec[7] = to debug
+Use vector 'fast_steps' to store fast-model time-step number:
+      fast_steps[1] = which time-step to save to start next "dostep" time-step
+      fast_steps[2] = how many fast time-step to perform
+"""
 
 @inline function initialize_fast_state!(
     slow::OceanModel,
@@ -18,33 +35,25 @@ using CLIMA.DGmethods: basic_grid_info
     slow_dt, fast_time_rec, fast_steps
 )
 
-    #- inverse ratio of additional fast time steps (for weighted average)
-    #  --> do 1/add more time-steps and average from: 1 - 1/add up to: 1 + 1/add
+    #- ratio of additional fast time steps (for weighted average)
+    #  --> add more time-step and average from: (1-add)*slow_dt up to: (1+add)*slow_dt
     add = slow.add_fast_substeps
 
-    #- set time-step and number of sub-steps we need
-    #  will time-average fast over: fast_steps[1] , fast_steps[3]
-    #  centered on fast_steps[2] which corresponds to advance in time of slow
-    fast_dt = fast_time_rec[1]
-    if add == 0
-        steps = fast_dt > 0 ? ceil(Int, slow_dt / fast_dt ) : 1
-        fast_steps[1:3] = [1 1 1] * steps
-    else
-        steps = fast_dt > 0 ? ceil(Int, slow_dt / fast_dt / add ) : 1
-        fast_steps[2] = add * steps
-        fast_steps[1] = ( add - 1 ) * steps
-        fast_steps[3] = ( add + 1 ) * steps
+    #- set starting and ending time for fast solution time-averaging:
+    fast_time_rec[3] = slow_dt
+    fast_time_rec[4] = slow_dt
+    if ( add > 0 ) & ( add <= 1 )
+       fast_time_rec[3] -= add * slow_dt
+       fast_time_rec[4] += add * slow_dt
     end
-    fast_time_rec[1] = slow_dt / fast_steps[2]
-    fast_time_rec[2] = 0.
-   # @printf("Update: frac_dt = %.1f , dt_fast = %.1f , nsubsteps= %i\n",
-   #          slow_dt,fast_time_rec[1],fast_steps[3])
-   # println(" fast_steps = ",fast_steps)
+
+    #@printf(" Time-averaging interval: fast_time_rec(3,4)= %8.3f , %8.3f\n",
+    #         fast_time_rec[3], fast_time_rec[4])
 
     dgFast.auxstate.η_c .= -0
     dgFast.auxstate.U_c .= (@SVector [-0, -0])'
 
-    # preliminary test: no average
+    # reset fast solution from where we left it
     Qfast.η .= dgFast.auxstate.η_s
     Qfast.U .= dgFast.auxstate.U_s
 
@@ -75,9 +84,23 @@ end
     dgFast,
     Qslow,
     Qfast,
+    last_step, slow_dt, fast_time_rec, fast_steps
 )
     ## reset tendency adjustment before calling Baroclinic Model
     dgSlow.auxstate.ΔGu .= 0
+
+    fast_dt = fast_time_rec[1]
+    steps = fast_dt > 0 ? ceil(Int, slow_dt / fast_dt ) : 1
+    fast_steps[1] = steps
+    fast_time_rec[1] = slow_dt / steps
+    if last_step
+      fast_steps[2] = ceil( Int64, ( fast_time_rec[4] - fast_time_rec[2] )/ fast_time_rec[1] )
+    else
+      fast_steps[2] = steps
+    end
+
+    #@printf("Update: t=%9.3f, frac_dt =%9.3f , dt_fast =%8.3f , fast_steps = %i, %i\n",
+    #         fast_time_rec[2], slow_dt, fast_time_rec[1], fast_steps[1], fast_steps[2])
 
     return nothing
 end
@@ -117,25 +140,90 @@ end
     fast::BarotropicModel,
     dgFast,
     Qfast,
-    fast_time,
     fast_dt,
     substep, fast_steps, fast_time_rec,
 )
     #- might want to use some of the weighting factors: weights_η & weights_U
-    #- should account for case where fast_dt < fast.param.dt
+    local_time = fast_time_rec[2]
+    future_time = local_time + fast_dt
 
     # cumulate Fast solution:
-    if substep >= fast_steps[1]
-      dgFast.auxstate.U_c .+= Qfast.U
-      dgFast.auxstate.η_c .+= Qfast.η
-      fast_time_rec[2] += 1.
+    if ( fast_time_rec[3] <  fast_time_rec[4] ) & ( future_time >=  fast_time_rec[3] )
+      if fast_time_rec[5] == 0.
+        p_weight = 0.5 * ( future_time - fast_time_rec[3] ) / fast_dt
+        n_weight = p_weight * ( fast_dt + fast_time_rec[3] - local_time )
+        p_weight *= ( future_time - fast_time_rec[3] )
+      else
+        if ( future_time >  fast_time_rec[4] )
+          n_weight = 0.5 * ( fast_time_rec[4] - local_time ) / fast_dt
+          p_weight = n_weight * ( fast_dt + future_time - fast_time_rec[4] )
+          n_weight *= ( fast_time_rec[4] - local_time )
+        else
+          p_weight = 0.5 * fast_dt
+          n_weight = 0.5 * fast_dt
+        end
+      end
+      #@printf(" ns= %3i Cumul: t=%9.3f , p_w=%8.3f, n_w=%8.3f,",
+      #         substep, local_time, p_weight, n_weight)
+      dt_weight = fast_time_rec[6] + p_weight
+      fast_time_rec[6] = n_weight
+    else
+      #@printf(" ns= %3i Cumul: t=%9.3f ,                            ", substep, local_time )
+      dt_weight = 0.
     end
 
+    if dt_weight > 0.
+      dgFast.auxstate.U_c .+= Qfast.U * dt_weight
+      dgFast.auxstate.η_c .+= Qfast.η * dt_weight
+      fast_time_rec[5] += dt_weight
+     #fast_time_rec[7] += dt_weight * local_time
+    end
+    #@printf(" W=%8.3f , Sum=%10.3f ,%13.3f\n",
+    #         dt_weight, fast_time_rec[5], fast_time_rec[7])
+
     # save mid-point solution to start from the next time-step
-    if substep == fast_steps[2]
+    if substep == fast_steps[1]
       dgFast.auxstate.U_s .= Qfast.U
       dgFast.auxstate.η_s .= Qfast.η
     end
+
+    return nothing
+end
+
+@inline function cummulate_last_solution!(
+    fast::BarotropicModel,
+    dgFast,
+    Qfast,
+    fast_dt,
+    substep, fast_steps, fast_time_rec,
+)
+    #- might want to use some of the weighting factors: weights_η & weights_U
+    local_time = fast_time_rec[2]
+
+    # cumulate Fast solution:
+    if ( fast_time_rec[3] <  fast_time_rec[4] )
+      dt_weight = fast_time_rec[6]
+      fast_time_rec[6] = 0.
+    else
+      dt_weight = 1.
+    end
+
+    if dt_weight > 0.
+      dgFast.auxstate.U_c .+= Qfast.U * dt_weight
+      dgFast.auxstate.η_c .+= Qfast.η * dt_weight
+      fast_time_rec[5] += dt_weight
+     #fast_time_rec[7] += dt_weight * local_time
+    end
+
+    # save mid-point solution to start from the next time-step
+    if substep == fast_steps[1]
+      dgFast.auxstate.U_s .= Qfast.U
+      dgFast.auxstate.η_s .= Qfast.η
+    end
+
+    #@printf(
+    # " ns= %3i Final: t=%9.3f ,                             W=%8.3f , Sum=%10.3f ,%13.3f\n",
+    #        substep, fast_time_rec[2], dt_weight, fast_time_rec[5], fast_time_rec[7] )
 
     return nothing
 end
@@ -166,8 +254,11 @@ end
     flat_∫u = @view boxy_∫u[:, end, :, end, :]
 
     ## get time weighted averaged out of cumulative arrays
-    dgFast.auxstate.U_c .*= 1 / fast_time_rec[2]
-    dgFast.auxstate.η_c .*= 1 / fast_time_rec[2]
+    dgFast.auxstate.U_c .*= 1 / fast_time_rec[5]
+    dgFast.auxstate.η_c .*= 1 / fast_time_rec[5]
+
+    #fast_time_rec[7] *= 1 / fast_time_rec[5]
+    #@printf("Final averaged: fast_time_rec(7) =%12.6f\n", fast_time_rec[7])
 
     ### substract ∫u from U and divide by H
 
