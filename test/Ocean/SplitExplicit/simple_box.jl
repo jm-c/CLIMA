@@ -397,10 +397,10 @@ zrange = range(FT(-H); length = Nᶻ + 1, stop = 0)
 const cʰ = 1  # typical of ocean internal-wave speed
 const cᶻ = 0
 
-#- inverse ratio of additional fast time steps (for weighted average)
-#  --> do 1/add more time-steps and average from: 1 - 1/add up to: 1 + 1/add
-# e.g., = 1 --> 100% more ; = 2 --> 50% more ; = 3 --> 33% more ...
-# add_fast_substeps = 0
+#- ratio of additional fast time steps (for weighted average)
+#  --> add more time-steps and average from: (1-add)*dt_slow up to: (1+add)*dt_slow
+# e.g., = 1 --> 100% more ; = 0.5 --> 50% more ; = 0.3 --> 30% more ...
+# add_fast_substeps = 0.
 
 const τₒ = 1e-1  # (m/s)^2
 #const τₒ = 0
