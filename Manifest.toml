@@ -38,9 +38,9 @@ version = "2.11.0"
 
 [[ArrayLayouts]]
 deps = ["FillArrays", "LinearAlgebra"]
-git-tree-sha1 = "6f6e33efac70fc24c1f2a654a090b7af01690ffe"
+git-tree-sha1 = "951c3fc1ff93497c88fb1dfa893f4de55d0b38e3"
 uuid = "4c555306-a7a7-4459-81d9-ec55ddd5c99a"
-version = "0.3.7"
+version = "0.3.8"
 
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
@@ -76,9 +76,9 @@ version = "0.1.6"
 
 [[CUDA]]
 deps = ["AbstractFFTs", "Adapt", "BinaryProvider", "CEnum", "DataStructures", "ExprTools", "GPUArrays", "GPUCompiler", "LLVM", "Libdl", "LinearAlgebra", "Logging", "MacroTools", "NNlib", "Pkg", "Printf", "Random", "Reexport", "Requires", "SparseArrays", "Statistics", "TimerOutputs"]
-git-tree-sha1 = "66dbcc0d8e9470358d57aa52dbe74f97bab31a7f"
+git-tree-sha1 = "2c007bb3931360013d32bcd53a727e0a7f144e00"
 uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
-version = "1.2.0"
+version = "1.2.1"
 
 [[Cassette]]
 git-tree-sha1 = "ff6f5109371926beb67ec3101be17d2c211e497d"
@@ -183,9 +183,9 @@ version = "0.4.2"
 
 [[DiffEqBase]]
 deps = ["ArrayInterface", "ChainRulesCore", "ConsoleProgressMonitor", "DataStructures", "Distributed", "DocStringExtensions", "FunctionWrappers", "IterativeSolvers", "IteratorInterfaceExtensions", "LabelledArrays", "LinearAlgebra", "Logging", "LoggingExtras", "MuladdMacro", "Parameters", "Printf", "ProgressLogging", "RecipesBase", "RecursiveArrayTools", "RecursiveFactorization", "Requires", "Roots", "SparseArrays", "StaticArrays", "Statistics", "SuiteSparse", "TableTraits", "TerminalLoggers", "TreeViews", "ZygoteRules"]
-git-tree-sha1 = "71f24ebaae27509a39b8a1aabe313351eebe54ed"
+git-tree-sha1 = "9ee99d9d293494d2cd61b47f8e87479018280134"
 uuid = "2b5f629d-d688-5b77-993f-72d75c75574e"
-version = "6.41.2"
+version = "6.41.3"
 
 [[DiffResults]]
 deps = ["StaticArrays"]
@@ -258,9 +258,9 @@ version = "0.8.13"
 
 [[FiniteDiff]]
 deps = ["ArrayInterface", "LinearAlgebra", "Requires", "SparseArrays", "StaticArrays"]
-git-tree-sha1 = "43b397bf66d07d113cc2cc012dd2029d336c3894"
+git-tree-sha1 = "ed5d92cc9a84b9f5f9d65d3559b22d4b3b824b7e"
 uuid = "6a86dc24-6348-571c-b903-95158fe2bd41"
-version = "2.5.1"
+version = "2.5.2"
 
 [[Formatting]]
 deps = ["Printf"]
@@ -281,9 +281,9 @@ version = "1.1.1"
 
 [[GPUArrays]]
 deps = ["AbstractFFTs", "Adapt", "LinearAlgebra", "Printf", "Random", "Serialization"]
-git-tree-sha1 = "0aaa4ff7001086e190a00180495b93b00df8bb43"
+git-tree-sha1 = "9027d6128645d227fa9ba7d5b3aa00af696b9aaf"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
-version = "4.0.1"
+version = "5.0.0"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "InteractiveUtils", "LLVM", "Libdl", "TimerOutputs", "UUIDs"]
@@ -452,9 +452,9 @@ version = "0.8.20"
 
 [[MPI]]
 deps = ["Distributed", "DocStringExtensions", "Libdl", "MPICH_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "Pkg", "Random", "Requires", "Serialization", "Sockets"]
-git-tree-sha1 = "925f4e00b51d7a68ecb88c1b60d3b7aefb8c8fcb"
+git-tree-sha1 = "0bd36605eea7a4d9c3ae0d7f21c10210dd54cb83"
 uuid = "da04e1cc-30fd-572f-bb4f-1f8673147195"
-version = "0.15.0"
+version = "0.15.1"
 
 [[MPICH_jll]]
 deps = ["CompilerSupportLibraries_jll", "Libdl", "Pkg"]
