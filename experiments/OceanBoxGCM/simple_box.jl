@@ -35,6 +35,8 @@ function config_simple_box(name, resolution, dimensions, problem; BC = nothing)
         resolution,
         param_set,
         model,
+        boundary = ((0, 0), (1, 1), (2, 3)),
+        periodicity = (true, false, false),
     )
 
     return config
