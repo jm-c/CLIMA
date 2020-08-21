@@ -6,6 +6,7 @@ abstract type OceanBoundaryCondition end
 struct CoastlineFreeSlip <: OceanBoundaryCondition end
 struct CoastlineNoSlip <: OceanBoundaryCondition end
 struct OceanFloorFreeSlip <: OceanBoundaryCondition end
+struct OceanFloorLinearDrag <: OceanBoundaryCondition end
 struct OceanFloorNoSlip <: OceanBoundaryCondition end
 struct OceanSurfaceNoStressNoForcing <: OceanBoundaryCondition end
 struct OceanSurfaceStressNoForcing <: OceanBoundaryCondition end
@@ -364,6 +365,87 @@ apply no penetration boundary for temperature
 end
 
 """
+    OceanFloorLinearDrag
+
+applies boundary condition ∇u = 0 and ∇θ = 0
+"""
+
+"""
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorLinearDrag, ::RusanovNumericalFlux)
+
+apply free slip boundary conditions for velocity
+apply no penetration boundary for temperature
+"""
+@inline function ocean_boundary_state!(
+    ::AbstractOceanModel,
+    ::OceanFloorLinearDrag,
+    ::Union{RusanovNumericalFlux, CentralNumericalFluxFirstOrder},
+    Q⁺,
+    A⁺,
+    n⁻,
+    Q⁻,
+    A⁻,
+    t,
+)
+    A⁺.w = -A⁻.w
+
+    return nothing
+end
+
+"""
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorLinearDrag, ::CentralNumericalFluxGradient)
+
+apply free slip boundary condition for velocity
+apply no penetration boundary for temperature
+"""
+@inline function ocean_boundary_state!(
+    ::AbstractOceanModel,
+    ::OceanFloorLinearDrag,
+    ::CentralNumericalFluxGradient,
+    Q⁺,
+    A⁺,
+    n⁻,
+    Q⁻,
+    A⁻,
+    t,
+)
+    FT = eltype(Q⁺)
+    A⁺.w = -zero(FT)
+
+    return nothing
+end
+
+"""
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorLinearDrag, ::CentralNumericalFluxSecondOrder)
+
+apply free slip boundary conditions for velocity
+apply no penetration boundary for temperature
+"""
+@inline function ocean_boundary_state!(
+    m::AbstractOceanModel,
+    ::OceanFloorLinearDrag,
+    ::CentralNumericalFluxSecondOrder,
+    Q⁺,
+    D⁺,
+    A⁺,
+    n⁻,
+    Q⁻,
+    D⁻,
+    A⁻,
+    t,
+)
+    A⁺.w = -A⁻.w
+    # gradient flux doesn't include minus sign
+    # so we do -(-λu)
+    u, v = Q⁺.u
+    D⁺.ν∇u = m.problem.λᴰ * @SMatrix [-0 -0; -0 -0; u v]
+
+    D⁺.κ∇θ = -D⁻.κ∇θ
+
+    return nothing
+end
+
+"""
     OceanFloorNoSlip
 
 applies boundary condition u = 0 and ∇θ = 0
@@ -519,7 +601,7 @@ apply no flux boundary condition for temperature
 )
     τᶻ = velocity_flux(m.problem, A⁻.y, m.ρₒ)
     τ = @SMatrix [-0 -0; -0 -0; τᶻ -0]
-    D⁺.ν∇u = -D⁻.ν∇u + 2 * τ
+    D⁺.ν∇u = τ
 
     D⁺.κ∇θ = -D⁻.κ∇θ
 
@@ -549,7 +631,7 @@ apply forcing boundary condition for temperature
 
     σᶻ = temperature_flux(m.problem, A⁻.y, Q⁻.θ)
     σ = @SVector [-0, -0, σᶻ]
-    D⁺.κ∇θ = -D⁻.κ∇θ + 2 * σ
+    D⁺.κ∇θ = σ
 
     return nothing
 end
@@ -575,11 +657,11 @@ apply forcing boundary condition for temperature
 )
     τᶻ = velocity_flux(m.problem, A⁻.y, m.ρₒ)
     τ = @SMatrix [-0 -0; -0 -0; τᶻ -0]
-    D⁺.ν∇u = -D⁻.ν∇u + 2 * τ
+    D⁺.ν∇u = τ
 
     σᶻ = temperature_flux(m.problem, A⁻.y, Q⁻.θ)
     σ = @SVector [-0, -0, σᶻ]
-    D⁺.κ∇θ = -D⁻.κ∇θ + 2 * σ
+    D⁺.κ∇θ = σ
 
     return nothing
 end
