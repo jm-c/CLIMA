@@ -583,11 +583,3 @@ apply forcing boundary condition for temperature
 
     return nothing
 end
-
-@inline velocity_flux(p::AbstractOceanProblem, y, ρ) =
-    -(p.τₒ / ρ) * cos(y * π / p.Lʸ)
-
-@inline function temperature_flux(p::AbstractOceanProblem, y, θ)
-    θʳ = p.θᴱ * (1 - y / p.Lʸ)
-    return p.λʳ * (θʳ - θ)
-end

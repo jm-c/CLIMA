@@ -36,7 +36,9 @@ import ClimateMachine.Ocean.SplitExplicit01:
     OceanSurfaceNoStressNoForcing,
     OceanSurfaceStressNoForcing,
     OceanSurfaceNoStressForcing,
-    OceanSurfaceStressForcing
+    OceanSurfaceStressForcing,
+    velocity_flux,
+    temperature_flux
 import ClimateMachine.DGMethods:
     update_auxiliary_state!, update_auxiliary_state_gradient!, VerticalDirection
 # using GPUifyLoops
@@ -85,6 +87,14 @@ end
     x...,
 )
     return ocean_boundary_state!(m, CoastlineNoSlip(), x...)
+end
+
+@inline velocity_flux(p::AbstractOceanProblem, y, ρ) =
+    -(p.τₒ / ρ) * cos(y * π / p.Lʸ)
+
+@inline function temperature_flux(p::AbstractOceanProblem, y, θ)
+    θʳ = p.θᴱ * (1 - y / p.Lʸ)
+    return p.λʳ * (θʳ - θ)
 end
 
 function ocean_init_state!(p::SimpleBox, Q, A, coords, t)
