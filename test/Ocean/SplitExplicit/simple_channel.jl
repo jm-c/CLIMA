@@ -196,6 +196,13 @@ function main()
     #- set model time-step:
     dt_fast = 8
     dt_slow = 240
+    
+    minΔx = min_node_distance(grid_3D, HorizontalDirection())
+    minΔz = min_node_distance(grid_3D, VerticalDirection())
+    
+    dt_fast = floor(Int, 1 / (2 * sqrt(gravity * H) / minΔx))
+    dt_slow = floor(Int, sqrt(2 * minΔx^2 + minΔz^2) / 16)
+
     nout = ceil(Int64, tout / dt_slow)
     dt_slow = tout / nout
     numImplSteps > 0 ? ivdc_dt = dt_slow / FT(numImplSteps) : ivdc_dt = dt_slow
@@ -216,16 +223,9 @@ function main()
 
     barotropicmodel = BarotropicModel(model)
 
-    minΔx = min_node_distance(grid_3D, HorizontalDirection())
-    minΔz = min_node_distance(grid_3D, VerticalDirection())
     #- 2 horiz directions
     gravity_max_dT = 1 / (2 * sqrt(gravity * H) / minΔx)
     # dt_fast = minimum([gravity_max_dT])
-
-    #- 2 horiz directions + harmonic visc or diffusion: 2^2 factor in CFL:
-    viscous_max_dT = 1 / (2 * model.νʰ / minΔx^2 + model.νᶻ / minΔz^2) / 4
-    diffusive_max_dT = 1 / (2 * model.κʰ / minΔx^2 + model.κᶻ / minΔz^2) / 4
-    # dt_slow = minimum([diffusive_max_dT, viscous_max_dT])
 
     @info @sprintf(
         """Update
@@ -234,6 +234,11 @@ function main()
         gravity_max_dT,
         dt_fast
     )
+
+    #- 2 horiz directions + harmonic visc or diffusion: 2^2 factor in CFL:
+    viscous_max_dT = 1 / (2 * model.νʰ / minΔx^2 + model.νᶻ / minΔz^2) / 4
+    diffusive_max_dT = 1 / (2 * model.κʰ / minΔx^2 + model.κᶻ / minΔz^2) / 4
+    # dt_slow = minimum([diffusive_max_dT, viscous_max_dT])
 
     @info @sprintf(
         """Update
@@ -426,15 +431,15 @@ end
 # RUN THE TESTS #
 #################
 FT = Float64
-vtkpath = "vtk_split"
+vtkpath = "vtk_channel"
 
-const timeend = 5 * 24 * 3600 # s
+const timeend = 60 * 24 * 3600 # s
 const tout = 24 * 3600 # s
 
-const N = 5
-const Nˣ = 40
-const Nʸ = 40
-const Nᶻ = 6
+const N = 4
+const Nˣ = 20
+const Nʸ = 20
+const Nᶻ = 8
 const Lˣ = 1e6  # m
 const Lʸ = 1e6  # m
 const H = 3000  # m
