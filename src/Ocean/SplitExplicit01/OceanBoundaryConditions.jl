@@ -7,6 +7,7 @@ struct CoastlineFreeSlip <: OceanBoundaryCondition end
 struct CoastlineNoSlip <: OceanBoundaryCondition end
 struct OceanFloorFreeSlip <: OceanBoundaryCondition end
 struct OceanFloorNoSlip <: OceanBoundaryCondition end
+struct OceanFloorLinearDrag <: OceanBoundaryCondition end
 struct OceanSurfaceNoStressNoForcing <: OceanBoundaryCondition end
 struct OceanSurfaceStressNoForcing <: OceanBoundaryCondition end
 struct OceanSurfaceNoStressForcing <: OceanBoundaryCondition end
@@ -19,7 +20,7 @@ applies boundary condition ∇u = 0 and ∇θ = 0
 """
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineFreeSlip, ::Union{RusanovNumericalFlux, CentralNumericalFluxFirstOrder})
+    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineFreeSlip, ::NumericalFluxFirstOrder)
 
 apply free slip boundary conditions for velocity
 apply no penetration boundary for temperature
@@ -27,7 +28,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::CoastlineFreeSlip,
-    ::Union{RusanovNumericalFlux, CentralNumericalFluxFirstOrder},
+    ::NumericalFluxFirstOrder,
     Q⁺,
     A⁺,
     n⁻,
@@ -47,7 +48,7 @@ end
 @inline function ocean_boundary_state!(
     ::BarotropicModel,
     ::CoastlineFreeSlip,
-    ::Union{RusanovNumericalFlux, CentralNumericalFluxFirstOrder},
+    ::NumericalFluxFirstOrder,
     Q⁺,
     A⁺,
     n⁻,
@@ -65,7 +66,7 @@ end
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineFreeSlip, ::CentralNumericalFluxGradient)
+    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineFreeSlip, ::NumericalFluxGradient)
 
 apply free slip boundary conditions for velocity
 apply no penetration boundary for temperature
@@ -73,7 +74,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::CoastlineFreeSlip,
-    ::CentralNumericalFluxGradient,
+    ::NumericalFluxGradient,
     Q⁺,
     A⁺,
     n⁻,
@@ -95,7 +96,7 @@ end
 @inline function ocean_boundary_state!(
     ::BarotropicModel,
     ::CoastlineFreeSlip,
-    ::CentralNumericalFluxGradient,
+    ::NumericalFluxGradient,
     Q⁺,
     A⁺,
     n⁻,
@@ -113,7 +114,7 @@ end
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineFreeSlip, ::CentralNumericalFluxSecondOrder)
+    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineFreeSlip, ::NumericalFluxSecondOrder)
 
 apply free slip boundary conditions for velocity
 apply no penetration boundary for temperature
@@ -121,7 +122,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::CoastlineFreeSlip,
-    ::CentralNumericalFluxSecondOrder,
+    ::NumericalFluxSecondOrder,
     Q⁺,
     D⁺,
     A⁺,
@@ -131,13 +132,6 @@ apply no penetration boundary for temperature
     A⁻,
     t,
 )
-    #   D⁺.ν∇u = -D⁻.ν∇u
-    #   D⁺.κ∇θ = -D⁻.κ∇θ
-    #-  new diffusive flux BC:
-    Q⁺.u = Q⁻.u
-    A⁺.u_d = A⁻.u_d
-    A⁺.w = A⁻.w
-    Q⁺.θ = Q⁻.θ
     D⁺.ν∇u = n⁻ * (@SVector [-0, -0])'
     D⁺.κ∇θ = n⁻ * -0
 
@@ -147,7 +141,7 @@ end
 @inline function ocean_boundary_state!(
     ::BarotropicModel,
     ::CoastlineFreeSlip,
-    ::CentralNumericalFluxSecondOrder,
+    ::NumericalFluxSecondOrder,
     Q⁺,
     D⁺,
     A⁺,
@@ -157,9 +151,6 @@ end
     A⁻,
     t,
 )
-    #   D⁺.ν∇U = -D⁻.ν∇U
-    #-  new diffusive flux BC:
-    Q⁺.U = Q⁻.U
     D⁺.ν∇U = n⁻ * (@SVector [-0, -0])'
 
     return nothing
@@ -172,7 +163,7 @@ applies boundary condition u = 0 and ∇θ = 0
 """
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineNoSlip, ::RusanovNumericalFlux)
+    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineNoSlip, ::NumericalFluxFirstOrder)
 
 apply no slip boundary condition for velocity
 apply no penetration boundary for temperature
@@ -180,7 +171,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::CoastlineNoSlip,
-    ::Union{RusanovNumericalFlux, CentralNumericalFluxFirstOrder},
+    ::NumericalFluxFirstOrder,
     Q⁺,
     A⁺,
     n⁻,
@@ -196,7 +187,7 @@ end
 @inline function ocean_boundary_state!(
     ::BarotropicModel,
     ::CoastlineNoSlip,
-    ::Union{RusanovNumericalFlux, CentralNumericalFluxFirstOrder},
+    ::NumericalFluxFirstOrder,
     Q⁺,
     A⁺,
     n⁻,
@@ -210,7 +201,7 @@ end
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineNoSlip, ::CentralNumericalFluxGradient)
+    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineNoSlip, ::NumericalFluxGradient)
 
 apply no slip boundary condition for velocity
 apply no penetration boundary for temperature
@@ -218,7 +209,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::CoastlineNoSlip,
-    ::CentralNumericalFluxGradient,
+    ::NumericalFluxGradient,
     Q⁺,
     A⁺,
     n⁻,
@@ -236,7 +227,7 @@ end
 @inline function ocean_boundary_state!(
     ::BarotropicModel,
     ::CoastlineNoSlip,
-    ::CentralNumericalFluxGradient,
+    ::NumericalFluxGradient,
     Q⁺,
     A⁺,
     n⁻,
@@ -251,7 +242,7 @@ end
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineNoSlip, ::CentralNumericalFluxSecondOrder)
+    ocean_boundary_state!(::AbstractOceanModel, ::CoastlineNoSlip, ::NumericalFluxSecondOrder)
 
 apply no slip boundary condition for velocity
 apply no penetration boundary for temperature
@@ -259,7 +250,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::CoastlineNoSlip,
-    ::CentralNumericalFluxSecondOrder,
+    ::NumericalFluxSecondOrder,
     Q⁺,
     D⁺,
     A⁺,
@@ -269,15 +260,6 @@ apply no penetration boundary for temperature
     A⁻,
     t,
 )
-    Q⁺.u = -Q⁻.u
-    A⁺.u_d = -A⁻.u_d
-
-    #   D⁺.κ∇θ = -D⁻.κ∇θ
-
-    #-  new diffusive flux BC:
-    #   Q⁺.u = -Q⁻.u
-    #   A⁺.w = -A⁻.w
-    Q⁺.θ = Q⁻.θ
     D⁺.ν∇u = D⁻.ν∇u
     D⁺.κ∇θ = n⁻ * -0
 
@@ -287,7 +269,7 @@ end
 @inline function ocean_boundary_state!(
     ::BarotropicModel,
     ::CoastlineNoSlip,
-    ::CentralNumericalFluxSecondOrder,
+    ::NumericalFluxSecondOrder,
     Q⁺,
     D⁺,
     A⁺,
@@ -297,8 +279,6 @@ end
     A⁻,
     t,
 )
-    Q⁺.U = -Q⁻.U
-    #-  new diffusive flux BC:
     D⁺.ν∇U = D⁻.ν∇U
 
     return nothing
@@ -311,7 +291,7 @@ applies boundary condition ∇u = 0 and ∇θ = 0
 """
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorFreeSlip, ::RusanovNumericalFlux)
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorFreeSlip, ::NumericalFluxFirstOrder)
 
 apply free slip boundary conditions for velocity
 apply no penetration boundary for temperature
@@ -319,7 +299,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::OceanFloorFreeSlip,
-    ::Union{RusanovNumericalFlux, CentralNumericalFluxFirstOrder},
+    ::NumericalFluxFirstOrder,
     Q⁺,
     A⁺,
     n⁻,
@@ -333,7 +313,7 @@ apply no penetration boundary for temperature
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorFreeSlip, ::CentralNumericalFluxGradient)
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorFreeSlip, ::NumericalFluxGradient)
 
 apply free slip boundary condition for velocity
 apply no penetration boundary for temperature
@@ -341,7 +321,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::OceanFloorFreeSlip,
-    ::CentralNumericalFluxGradient,
+    ::NumericalFluxGradient,
     Q⁺,
     A⁺,
     n⁻,
@@ -356,7 +336,7 @@ apply no penetration boundary for temperature
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorFreeSlip, ::CentralNumericalFluxSecondOrder)
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorFreeSlip, ::NumericalFluxSecondOrder)
 
 apply free slip boundary conditions for velocity
 apply no penetration boundary for temperature
@@ -364,7 +344,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::OceanFloorFreeSlip,
-    ::CentralNumericalFluxSecondOrder,
+    ::NumericalFluxSecondOrder,
     Q⁺,
     D⁺,
     A⁺,
@@ -374,16 +354,6 @@ apply no penetration boundary for temperature
     A⁻,
     t,
 )
-    #   A⁺.w = -A⁻.w
-    #   D⁺.ν∇u = -D⁻.ν∇u
-
-    #   D⁺.κ∇θ = -D⁻.κ∇θ
-
-    #-  new diffusive flux BC:
-    Q⁺.u = Q⁻.u
-    A⁺.u_d = A⁻.u_d
-    A⁺.w = A⁻.w
-    Q⁺.θ = Q⁻.θ
     D⁺.ν∇u = n⁻ * (@SVector [-0, -0])'
     D⁺.κ∇θ = n⁻ * -0
 
@@ -397,7 +367,7 @@ applies boundary condition u = 0 and ∇θ = 0
 """
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorNoSlip, ::RusanovNumericalFlux)
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorNoSlip, ::NumericalFluxFirstOrder)
 
 apply no slip boundary condition for velocity
 apply no penetration boundary for temperature
@@ -405,7 +375,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::OceanFloorNoSlip,
-    ::Union{RusanovNumericalFlux, CentralNumericalFluxFirstOrder},
+    ::NumericalFluxFirstOrder,
     Q⁺,
     A⁺,
     n⁻,
@@ -420,7 +390,7 @@ apply no penetration boundary for temperature
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorNoSlip, ::CentralNumericalFluxGradient)
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorNoSlip, ::NumericalFluxGradient)
 
 apply no slip boundary condition for velocity
 apply no penetration boundary for temperature
@@ -428,7 +398,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::OceanFloorNoSlip,
-    ::CentralNumericalFluxGradient,
+    ::NumericalFluxGradient,
     Q⁺,
     A⁺,
     n⁻,
@@ -444,7 +414,7 @@ apply no penetration boundary for temperature
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorNoSlip, ::CentralNumericalFluxSecondOrder)
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorNoSlip, ::NumericalFluxSecondOrder)
 
 apply no slip boundary condition for velocity
 apply no penetration boundary for temperature
@@ -452,7 +422,7 @@ apply no penetration boundary for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::OceanFloorNoSlip,
-    ::CentralNumericalFluxSecondOrder,
+    ::NumericalFluxSecondOrder,
     Q⁺,
     D⁺,
     A⁺,
@@ -462,16 +432,6 @@ apply no penetration boundary for temperature
     A⁻,
     t,
 )
-
-    Q⁺.u = -Q⁻.u
-    A⁺.w = -A⁻.w
-
-    #   D⁺.κ∇θ = -D⁻.κ∇θ
-
-    #-  new diffusive flux BC:
-    #   Q⁺.u = -Q⁻.u
-    #   A⁺.w = -A⁻.w
-    Q⁺.θ = Q⁻.θ
     D⁺.ν∇u = D⁻.ν∇u
     D⁺.κ∇θ = n⁻ * -0
 
@@ -479,8 +439,87 @@ apply no penetration boundary for temperature
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::Union{OceanSurface*}, ::Union{RusanovNumericalFlux, CentralNumericalFluxGradient})
+    OceanFloorLinearDrag
 
+applies boundary condition u = 0 with linear drag on viscous-flux and ∇θ = 0
+"""
+
+"""
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorLinearDrag, ::NumericalFluxFirstOrder)
+
+apply no slip boundary condition for velocity
+apply no penetration boundary for temperature
+"""
+@inline function ocean_boundary_state!(
+    ::AbstractOceanModel,
+    ::OceanFloorLinearDrag,
+    ::NumericalFluxFirstOrder,
+    Q⁺,
+    A⁺,
+    n⁻,
+    Q⁻,
+    A⁻,
+    t,
+)
+    Q⁺.u = -Q⁻.u
+    A⁺.w = -A⁻.w
+
+    return nothing
+end
+
+"""
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorLinearDrag, ::NumericalFluxGradient)
+
+apply no slip boundary condition for velocity
+apply no penetration boundary for temperature
+"""
+@inline function ocean_boundary_state!(
+    ::AbstractOceanModel,
+    ::OceanFloorLinearDrag,
+    ::NumericalFluxGradient,
+    Q⁺,
+    A⁺,
+    n⁻,
+    Q⁻,
+    A⁻,
+    t,
+)
+    FT = eltype(Q⁺)
+    Q⁺.u = SVector(-zero(FT), -zero(FT))
+    A⁺.w = -zero(FT)
+
+    return nothing
+end
+
+"""
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanFloorLinearDrag, ::NumericalFluxSecondOrder)
+
+apply linear drag boundary condition for velocity
+apply no penetration boundary for temperature
+"""
+@inline function ocean_boundary_state!(
+    m::AbstractOceanModel,
+    ::OceanFloorLinearDrag,
+    ::NumericalFluxSecondOrder,
+    Q⁺,
+    D⁺,
+    A⁺,
+    n⁻,
+    Q⁻,
+    D⁻,
+    A⁻,
+    t,
+)
+    u, v = Q⁻.u
+
+    D⁺.ν∇u = m.problem.Cd_lin * @SMatrix [-0 -0; -0 -0; u v]
+    D⁺.κ∇θ = n⁻ * -0
+
+    return nothing
+end
+
+"""
+    ocean_boundary_state!(::AbstractOceanModel, ::Union{OceanSurface*}, ::Union{NumericalFluxFirstOrder, NumericalFluxGradient})
 applying neumann boundary conditions, so don't need to do anything for these numerical fluxes
 """
 @inline function ocean_boundary_state!(
@@ -491,11 +530,7 @@ applying neumann boundary conditions, so don't need to do anything for these num
         OceanSurfaceNoStressForcing,
         OceanSurfaceStressForcing,
     },
-    ::Union{
-        RusanovNumericalFlux,
-        CentralNumericalFluxFirstOrder,
-        CentralNumericalFluxGradient,
-    },
+    ::Union{NumericalFluxFirstOrder, NumericalFluxGradient},
     Q⁺,
     A⁺,
     n⁻,
@@ -507,7 +542,7 @@ applying neumann boundary conditions, so don't need to do anything for these num
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::OceanSurfaceNoStressNoForcing, ::CentralNumericalFluxSecondOrder)
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanSurfaceNoStressNoForcing, ::NumericalFluxSecondOrder)
 
 apply no flux boundary condition for velocity
 apply no flux boundary condition for temperature
@@ -515,7 +550,7 @@ apply no flux boundary condition for temperature
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
     ::OceanSurfaceNoStressNoForcing,
-    ::CentralNumericalFluxSecondOrder,
+    ::NumericalFluxSecondOrder,
     Q⁺,
     D⁺,
     A⁺,
@@ -525,15 +560,6 @@ apply no flux boundary condition for temperature
     A⁻,
     t,
 )
-    #   D⁺.ν∇u = -D⁻.ν∇u
-
-    #   D⁺.κ∇θ = -D⁻.κ∇θ
-
-    #-  new diffusive flux BC:
-    Q⁺.u = Q⁻.u
-    A⁺.u_d = A⁻.u_d
-    A⁺.w = A⁻.w
-    Q⁺.θ = Q⁻.θ
     D⁺.ν∇u = n⁻ * (@SVector [-0, -0])'
     D⁺.κ∇θ = n⁻ * -0
 
@@ -541,7 +567,7 @@ apply no flux boundary condition for temperature
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::OceanSurfaceStressNoForcing, ::CentralNumericalFluxSecondOrder)
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanSurfaceStressNoForcing, ::NumericalFluxSecondOrder)
 
 apply wind-stress boundary condition for velocity
 apply no flux boundary condition for temperature
@@ -549,7 +575,7 @@ apply no flux boundary condition for temperature
 @inline function ocean_boundary_state!(
     m::AbstractOceanModel,
     ::OceanSurfaceStressNoForcing,
-    ::CentralNumericalFluxSecondOrder,
+    ::NumericalFluxSecondOrder,
     Q⁺,
     D⁺,
     A⁺,
@@ -560,16 +586,6 @@ apply no flux boundary condition for temperature
     t,
 )
     τᶻ = velocity_flux(m.problem, A⁻.y, m.ρₒ)
-    #   τ = @SMatrix [-0 -0; -0 -0; τᶻ -0]
-    #   D⁺.ν∇u = -D⁻.ν∇u + 2 * τ
-
-    #   D⁺.κ∇θ = -D⁻.κ∇θ
-
-    #-  new diffusive flux BC:
-    Q⁺.u = Q⁻.u
-    A⁺.u_d = A⁻.u_d
-    A⁺.w = A⁻.w
-    Q⁺.θ = Q⁻.θ
     D⁺.ν∇u = n⁻ * (@SVector [τᶻ, -0])'
     D⁺.κ∇θ = n⁻ * -0
 
@@ -577,7 +593,7 @@ apply no flux boundary condition for temperature
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::OceanSurfaceNoStressForcing, ::CentralNumericalFluxSecondOrder)
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanSurfaceNoStressForcing, ::NumericalFluxSecondOrder)
 
 apply no flux boundary condition for velocity
 apply forcing boundary condition for temperature
@@ -585,7 +601,7 @@ apply forcing boundary condition for temperature
 @inline function ocean_boundary_state!(
     m::AbstractOceanModel,
     ::OceanSurfaceNoStressForcing,
-    ::CentralNumericalFluxSecondOrder,
+    ::NumericalFluxSecondOrder,
     Q⁺,
     D⁺,
     A⁺,
@@ -595,17 +611,7 @@ apply forcing boundary condition for temperature
     A⁻,
     t,
 )
-    #   D⁺.ν∇u = -D⁻.ν∇u
-
     σᶻ = temperature_flux(m.problem, A⁻.y, Q⁻.θ)
-    #   σ = @SVector [-0, -0, σᶻ]
-    #   D⁺.κ∇θ = -D⁻.κ∇θ + 2 * σ
-
-    #-  new diffusive flux BC:
-    Q⁺.u = Q⁻.u
-    A⁺.u_d = A⁻.u_d
-    A⁺.w = A⁻.w
-    Q⁺.θ = Q⁻.θ
     D⁺.ν∇u = n⁻ * (@SVector [-0, -0])'
     D⁺.κ∇θ = n⁻ * σᶻ
 
@@ -613,7 +619,7 @@ apply forcing boundary condition for temperature
 end
 
 """
-    ocean_boundary_state!(::AbstractOceanModel, ::OceanSurfaceStressForcing, ::CentralNumericalFluxSecondOrder)
+    ocean_boundary_state!(::AbstractOceanModel, ::OceanSurfaceStressForcing, ::NumericalFluxSecondOrder)
 
 apply wind-stress boundary condition for velocity
 apply forcing boundary condition for temperature
@@ -621,7 +627,7 @@ apply forcing boundary condition for temperature
 @inline function ocean_boundary_state!(
     m::AbstractOceanModel,
     ::OceanSurfaceStressForcing,
-    ::CentralNumericalFluxSecondOrder,
+    ::NumericalFluxSecondOrder,
     Q⁺,
     D⁺,
     A⁺,
@@ -632,18 +638,7 @@ apply forcing boundary condition for temperature
     t,
 )
     τᶻ = velocity_flux(m.problem, A⁻.y, m.ρₒ)
-    #   τ = @SMatrix [-0 -0; -0 -0; τᶻ -0]
-    #   D⁺.ν∇u = -D⁻.ν∇u + 2 * τ
-
     σᶻ = temperature_flux(m.problem, A⁻.y, Q⁻.θ)
-    #   σ = @SVector [-0, -0, σᶻ]
-    #   D⁺.κ∇θ = -D⁻.κ∇θ + 2 * σ
-
-    #-  new diffusive flux BC:
-    Q⁺.u = Q⁻.u
-    A⁺.u_d = A⁻.u_d
-    A⁺.w = A⁻.w
-    Q⁺.θ = Q⁻.θ
     D⁺.ν∇u = n⁻ * (@SVector [τᶻ, -0])'
     D⁺.κ∇θ = n⁻ * σᶻ
 
