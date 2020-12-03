@@ -54,6 +54,8 @@ struct OceanModel{P, T} <: AbstractOceanModel
     end
 end
 
+sponge_relaxation(::OceanModel, ::AbstractOceanProblem, _...) = nothing
+
 function calculate_dt(grid, model::OceanModel, Courant_number)
     #=
       minΔx = min_node_distance(grid, HorizontalDirection())
@@ -178,6 +180,7 @@ function vars_state(m::OceanModel, ::Auxiliary, T)
         u_d::SVector{2, T}  # velocity deviation from vertical mean
         ΔGu::SVector{2, T}
         y::T     # y-coordinate of the box
+        z::T     # z-coordinate of the box
     end
 end
 
@@ -458,6 +461,8 @@ end
         # switch this to S.η if you comment out the fast mode in MultistateMultirateRungeKutta
         S.η += A.wz0
     end
+
+    sponge_relaxation(m, m.problem, S, Q, A)
 
     return nothing
 end
