@@ -374,10 +374,7 @@ apply no penetration boundary for temperature
 """
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
-    ::Union{
-        OceanFloorNoSlip,
-        OceanFloorLinearDrag,
-    },
+    ::Union{OceanFloorNoSlip, OceanFloorLinearDrag},
     ::NumericalFluxFirstOrder,
     Q⁺,
     A⁺,
@@ -400,10 +397,7 @@ apply no penetration boundary for temperature
 """
 @inline function ocean_boundary_state!(
     ::AbstractOceanModel,
-    ::Union{
-        OceanFloorNoSlip,
-        OceanFloorLinearDrag,
-    },
+    ::Union{OceanFloorNoSlip, OceanFloorLinearDrag},
     ::NumericalFluxGradient,
     Q⁺,
     A⁺,

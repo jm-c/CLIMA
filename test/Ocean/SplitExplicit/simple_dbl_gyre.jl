@@ -247,9 +247,9 @@ function main(; restart = 0)
 
     if restart > 0
         direction = EveryDirection()
-        Q_3D, _ , t0 =
+        Q_3D, _, t0 =
             read_checkpoint(vtkpath, "baroclinic", ArrayType, mpicomm, restart)
-        Q_2D, _  , _ =
+        Q_2D, _, _ =
             read_checkpoint(vtkpath, "barotropic", ArrayType, mpicomm, restart)
 
         dg = OceanDGModel(
@@ -257,7 +257,7 @@ function main(; restart = 0)
             grid_3D,
             RusanovNumericalFlux(),
             CentralNumericalFluxSecondOrder(),
-            CentralNumericalFluxGradient();
+            CentralNumericalFluxGradient(),
         )
         barotropic_dg = DGModel(
             barotropicmodel,
