@@ -79,7 +79,7 @@ end
     t,
 )
     ν = viscosity_tensor(m)
-    D.ν∇U = ν * G.U
+    D.ν∇U = -ν * G.U
 
     return nothing
 end
@@ -126,7 +126,7 @@ end
     t::Real,
 )
     # numerical diffusivity for stability
-    F.U -= D.ν∇U
+    F.U += D.ν∇U
 
     return nothing
 end
