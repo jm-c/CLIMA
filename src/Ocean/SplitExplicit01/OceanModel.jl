@@ -54,6 +54,8 @@ struct OceanModel{P, T} <: AbstractOceanModel
     end
 end
 
+sponge_relaxation(::OceanModel, ::AbstractOceanProblem, _...) = nothing
+
 function calculate_dt(grid, ::OceanModel, _...)
     #=
       minΔx = min_node_distance(grid, HorizontalDirection())
@@ -180,6 +182,7 @@ function vars_state(m::OceanModel, ::Auxiliary, T)
         u_d::SVector{2, T}  # velocity deviation from vertical mean
         ΔGu::SVector{2, T}
         y::T     # y-coordinate of the box
+        z::T     # z-coordinate of the box
     end
 end
 
@@ -239,9 +242,9 @@ end
     #  D.ν∇u = ν * G.u
     D.ν∇u =
         -@SMatrix [
-            m.νʰ*G.ud[1, 1] m.νʰ*G.ud[1, 2]
-            m.νʰ*G.ud[2, 1] m.νʰ*G.ud[2, 2]
-            m.νᶻ*G.u[3, 1] m.νᶻ*G.u[3, 2]
+            m.νʰ * G.ud[1, 1] m.νʰ * G.ud[1, 2]
+            m.νʰ * G.ud[2, 1] m.νʰ * G.ud[2, 2]
+            m.νᶻ * G.u[3, 1] m.νᶻ * G.u[3, 2]
         ]
 
     κ = diffusivity_tensor(m, G.θ[3])
@@ -458,6 +461,8 @@ end
         # switch this to S.η if you comment out the fast mode in MultistateMultirateRungeKutta
         S.η += A.wz0
     end
+
+    sponge_relaxation(m, m.problem, S, Q, A)
 
     return nothing
 end
