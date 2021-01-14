@@ -30,6 +30,7 @@ const param_set = EarthParameterSet()
 import ClimateMachine.Ocean.SplitExplicit01:
     ocean_init_aux!,
     ocean_init_state!,
+    momentum_advection!,
     ocean_boundary_state!,
     CoastlineFreeSlip,
     CoastlineNoSlip,
@@ -61,6 +62,25 @@ struct ReentrantChannel{T, BC} <: AbstractOceanProblem
     hSp::T  # temperature e-folding depth
     ySp::T # sponge relaxation exponential decay length
     σʳ::T # sponge relaxation inverse time scale
+end
+
+@inline function momentum_advection!(
+    m::OceanModel,
+    p::ReentrantChannel,
+    F,
+    Q,
+    A,
+    t,
+)
+    @inbounds begin
+        u = Q.u   # Horizontal components of velocity
+        w = A.w   # vertical velocity
+        v = @SVector [u[1], u[2], w]
+
+        # ∇h • (v ⊗ u)
+        F.u += v * u'
+    end
+    return nothing
 end
 
 init_temp(θᴱ, Lʸ, h, H, y, z) =
@@ -563,7 +583,7 @@ add_fast_substeps = 3
 # default = 0 : disable implicit vertical diffusion
 numImplSteps = 5
 
-#- values for τₒ , Cd_lin , θᴱ , hSp & σʳ are from Ryan Abernethey etal, JPO, 2011 paper: 
+#- values for τₒ , Cd_lin , θᴱ , hSp & σʳ are from Ryan Abernethey etal, JPO, 2011 paper:
 const τₒ = 2e-1        # zonal wind-stress magnitude (Pa = N/m^2)
 const Cd_lin = 1.1e-3  # linear bottom drag coefficient (m/s)
 const λʳ = 10 // 86400 # surface temperature relaxtion speed (m/s)
@@ -571,8 +591,8 @@ const θᴱ = 10          # temperature range in forcing & initial state (deg.C)
 const hSp = 1000       # temperature e-folding depth (m)
 const ySp = 20e3       # sponge relaxation exponential decay length (m)
 const σʳ = 1 // (7 * 86400) # sponge relaxation inverse time scale (s^-1)
-#- Note: in Ryan's channel, 
-#  a) seems θᴱ = 8 
+#- Note: in Ryan's channel,
+#  a) seems θᴱ = 8
 #  b) sponge done with pkg/rbcs, zero relaxation @ y = Ly - 100.km, upto 1/(7.d) @ y = Ly
 #  c) no Temp surface relaxation but instead Qnet(y)
 

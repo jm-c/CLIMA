@@ -55,6 +55,7 @@ struct OceanModel{P, T} <: AbstractOceanModel
 end
 
 sponge_relaxation(::OceanModel, ::AbstractOceanProblem, _...) = nothing
+momentum_advection!(::OceanModel, ::AbstractOceanProblem, _...) = nothing
 
 function calculate_dt(grid, ::OceanModel, _...)
     #=
@@ -260,8 +261,11 @@ end
     if m.numImplSteps > 0
         κ = (@SVector [m.κʰ, m.κʰ, m.κᶻ * 0.5])
     else
-        ∂θ∂z < 0 ? κ = (@SVector [m.κʰ, m.κʰ, m.κᶜ]) :
-        κ = (@SVector [m.κʰ, m.κʰ, m.κᶻ])
+        ∂θ∂z < 0 ? κ = (@SVector [m.κʰ, m.κʰ, m.κᶜ]) : κ = (@SVector [
+            m.κʰ,
+            m.κʰ,
+            m.κᶻ,
+        ])
     end
 
     return Diagonal(κ)
@@ -414,6 +418,8 @@ end
         # ∇h • (v ⊗ u)
         # F.u += v * u'
     end
+
+    momentum_advection!(m, m.problem, F, Q, A, t)
 
     return nothing
 end
