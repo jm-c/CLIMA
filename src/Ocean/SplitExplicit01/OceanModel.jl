@@ -1,4 +1,4 @@
-struct OceanModel{P, T} <: AbstractOceanModel
+struct OceanModel{S, P, T} <: AbstractOceanModel
     problem::P
     grav::T
     ρₒ::T
@@ -7,6 +7,7 @@ struct OceanModel{P, T} <: AbstractOceanModel
     add_fast_substeps::T
     numImplSteps::T
     ivdc_dt::T
+    stabilizing_dissipation::S
     αᵀ::T
     νʰ::T
     νᶻ::T
@@ -24,6 +25,7 @@ struct OceanModel{P, T} <: AbstractOceanModel
         add_fast_substeps = 0,
         numImplSteps = 0,
         ivdc_dt = FT(1),
+        stabilizing_dissipation::S = nothing,
         αᵀ = FT(2e-4),  # 1/K
         νʰ = FT(5e3),   # m^2/s
         νᶻ = FT(5e-3),  # m^2/s
@@ -32,8 +34,8 @@ struct OceanModel{P, T} <: AbstractOceanModel
         κᶜ = FT(1e-4),  # convective adjustment vertical diffusivity, m^2/s
         fₒ = FT(1e-4),  # Hz
         β = FT(1e-11),  # Hz/m
-    ) where {FT <: AbstractFloat}
-        return new{typeof(problem), FT}(
+    ) where {FT <: AbstractFloat, S}
+        return new{S, typeof(problem), FT}(
             problem,
             grav,
             ρₒ,
@@ -42,6 +44,7 @@ struct OceanModel{P, T} <: AbstractOceanModel
             add_fast_substeps,
             numImplSteps,
             ivdc_dt,
+            stabilizing_dissipation,
             αᵀ,
             νʰ,
             νᶻ,
@@ -52,6 +55,46 @@ struct OceanModel{P, T} <: AbstractOceanModel
             β,
         )
     end
+end
+
+struct StabilizingDissipation{T}
+    κʰ_min::T
+    κʰ_max::T
+    νʰ_min::T
+    νʰ_max::T
+    smoothness_exponent::T
+    minimum_node_spacing::T
+    Δu::T
+    Δθ::T
+end
+
+function StabilizingDissipation(;
+    time_step,
+    Δu,
+    Δθ,
+    minimum_node_spacing,
+    diffusive_cfl = 0.1,
+    viscous_cfl = 0.1,
+    κʰ_min = 0,
+    νʰ_min = 0,
+    smoothness_exponent = 2,
+)
+
+    FT = typeof(time_step)
+
+    κʰ_max = diffusive_cfl * minimum_node_spacing^2 / time_step
+    νʰ_max = viscous_cfl * minimum_node_spacing^2 / time_step
+
+    return StabilizingDissipation{FT}(
+        FT(κʰ_min),
+        FT(κʰ_max),
+        FT(νʰ_min),
+        FT(νʰ_max),
+        FT(smoothness_exponent),
+        FT(minimum_node_spacing),
+        FT(Δu),
+        FT(Δθ),
+    )
 end
 
 sponge_relaxation(::OceanModel, ::AbstractOceanProblem, _...) = nothing
@@ -232,15 +275,15 @@ function vars_state(m::OceanModel, ::GradientFlux, T)
 end
 
 @inline function compute_gradient_flux!(
-    m::OceanModel,
+    m::OceanModel{Nothing},
     D::Vars,
     G::Grad,
     Q::Vars,
     A::Vars,
     t,
 )
-    ν = viscosity_tensor(m)
-    #  D.ν∇u = ν * G.u
+    #  ν = viscosity_tensor(m, G.u)
+    #  D.ν∇u = - ν * G.u
     D.ν∇u =
         -@SMatrix [
             m.νʰ * G.ud[1, 1] m.νʰ * G.ud[1, 2]
@@ -248,27 +291,108 @@ end
             m.νᶻ * G.u[3, 1] m.νᶻ * G.u[3, 2]
         ]
 
-    κ = diffusivity_tensor(m, G.θ[3])
+    κ = diffusivity_tensor(m, G.θ)
     D.κ∇θ = -κ * G.θ
 
     return nothing
 end
 
-@inline viscosity_tensor(m::OceanModel) = Diagonal(@SVector [m.νʰ, m.νʰ, m.νᶻ])
+@inline viscosity_tensor(m::OceanModel{Nothing}, ∇u) =
+    Diagonal(@SVector [m.νʰ, m.νʰ, m.νᶻ])
 
-@inline function diffusivity_tensor(m::OceanModel, ∂θ∂z)
+@inline function diffusivity_tensor(m::OceanModel{Nothing}, ∇θ)
+
+    @inbounds θz = ∇θ[3]
 
     if m.numImplSteps > 0
-        κ = (@SVector [m.κʰ, m.κʰ, m.κᶻ * 0.5])
+        κᶻ = m.κᶻ * 0.5
     else
-        ∂θ∂z < 0 ? κ = (@SVector [m.κʰ, m.κʰ, m.κᶜ]) : κ = (@SVector [
-            m.κʰ,
-            m.κʰ,
-            m.κᶻ,
-        ])
+        # Compute convective adjustement diffusivity
+        θz < 0 ? κᶻ = m.κᶜ : κᶻ = m.κᶻ
     end
 
-    return Diagonal(κ)
+    return Diagonal(@SVector [m.κʰ, m.κʰ, κᶻ])
+end
+
+@inline function compute_gradient_flux!(
+    m::OceanModel{<:StabilizingDissipation},
+    D::Vars,
+    G::Grad,
+    Q::Vars,
+    A::Vars,
+    t,
+)
+    ν = viscosity_tensor(m, G.u)
+    D.ν∇u =
+        -@SMatrix [
+            m.νʰ * G.ud[1, 1] m.νʰ * G.ud[1, 2]
+            m.νʰ * G.ud[2, 1] m.νʰ * G.ud[2, 2]
+            -0 -0
+        ]
+    -ν * G.u
+
+    κ = diffusivity_tensor(m, G.θ)
+    D.κ∇θ = -κ * G.θ
+
+    return nothing
+end
+
+@inline function viscosity_tensor(m::OceanModel{<:StabilizingDissipation}, ∇u)
+    ϰ = m.stabilizing_dissipation
+    Δh = ϰ.minimum_node_spacing
+
+    # ∇u is a 2 × 3 tensor (eg ∇uʰ, where ∇ is 3D)
+    @inbounds begin
+        ux = ∇u[1, 1]
+        uy = ∇u[1, 2]
+        vx = ∇u[2, 1]
+        vy = ∇u[2, 2]
+    end
+
+    ∇u² = ux^2 + uy^2 + vx^2 + vy^2
+
+    arg = (sqrt(∇u²) * Δh / ϰ.Δu)^ϰ.smoothness_exponent
+
+    # νʰ = m.νʰ + ϰ.νʰ_min + (ϰ.νʰ_max - ϰ.νʰ_min) * tanh(arg)
+    νʰ = ϰ.νʰ_min + (ϰ.νʰ_max - ϰ.νʰ_min) * tanh(arg)
+
+    return Diagonal(@SVector [νʰ, νʰ, m.νᶻ])
+end
+
+#==
+@inline function viscosity_tensor(m::BarotropicModel{M}, ∇U) where {M <: OceanModel{<:StabilizingDissipation}}
+    νʰ = m.νʰ + ϰ.νʰ_min
+    return Diagonal(@SVector [νʰ, νʰ, 0])
+end
+==#
+
+@inline function diffusivity_tensor(m::OceanModel{<:StabilizingDissipation}, ∇θ)
+
+    @inbounds begin
+        θx = ∇θ[1]
+        θy = ∇θ[2]
+        θz = ∇θ[3]
+    end
+
+    # Compute stabilizing dissipation for horizontal diffusion
+    ϰ = m.stabilizing_dissipation
+    Δh = ϰ.minimum_node_spacing
+
+    ∇θ² = θx^2 + θy^2 + θz^2
+
+    arg = (sqrt(∇θ²) * Δh / ϰ.Δθ)^ϰ.smoothness_exponent
+
+    κʰ = m.κʰ + ϰ.κʰ_min + (ϰ.κʰ_max - ϰ.κʰ_min) * tanh(arg)
+
+    # set vertical diffusion
+    if m.numImplSteps > 0
+        κᶻ = m.κᶻ * 0.5
+    else
+        # Compute convective adjustement diffusivity
+        θz < 0 ? κᶻ = m.κᶜ : κᶻ = m.κᶻ
+    end
+
+    return Diagonal(@SVector [κʰ, κʰ, κᶻ])
 end
 
 """
@@ -612,3 +736,22 @@ dispatches to a function in OceanBoundaryConditions.jl based on BC type defined 
 @inline function boundary_state!(nf, bc, ocean::OceanModel, args...)
     return ocean_model_boundary!(ocean, bc, nf, args...)
 end
+
+#==
+#-- from StabilizingDissipations.jl :
+module StabilizingDissipations
+
+# export StabilizingDissipation
+
+using StaticArrays
+using LinearAlgebra
+
+using ....Mesh.Grids: min_node_distance, HorizontalDirection
+
+import ..SplitExplicit01: diffusivity_tensor, viscosity_tensor
+
+using ..SplitExplicit01: OceanModel
+
+end # module
+#---------------
+==#
