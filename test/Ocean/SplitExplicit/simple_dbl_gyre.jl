@@ -30,6 +30,8 @@ const param_set = EarthParameterSet()
 import ClimateMachine.Ocean.SplitExplicit01:
     ocean_init_aux!,
     ocean_init_state!,
+    momentum_advection!,
+    StabilizingDissipation,
     ocean_boundary_state!,
     CoastlineFreeSlip,
     CoastlineNoSlip,
@@ -55,6 +57,25 @@ struct DoubleGyreBox{T, BC} <: AbstractOceanProblem
     λʳ::T
     θᴱ::T
     boundary_conditions::BC
+end
+
+@inline function momentum_advection!(
+    m::OceanModel,
+    p::DoubleGyreBox,
+    F,
+    Q,
+    A,
+    t,
+)
+    @inbounds begin
+        u = Q.u   # Horizontal components of velocity
+        w = A.w   # vertical velocity
+        v = @SVector [u[1], u[2], w]
+
+        # ∇h • (v ⊗ u)
+        F.u += v * u'
+    end
+    return nothing
 end
 
 @inline velocity_flux(p::DoubleGyreBox, y, ρ) =
@@ -147,6 +168,8 @@ function main(; restart = 0)
         DeviceArray = ArrayType,
         polynomialorder = N,
     )
+    minΔx = min_node_distance(grid_3D, HorizontalDirection())
+    minΔz = min_node_distance(grid_3D, VerticalDirection())
 
     BC = (
         ClimateMachine.Ocean.SplitExplicit01.CoastlineNoSlip(),
@@ -172,6 +195,17 @@ function main(; restart = 0)
         ceil(Int64, runTime / dt_slow)
     ivdc_dt = numImplSteps > 0 ? dt_slow / FT(numImplSteps) : dt_slow
 
+    my_variable_dissip = StabilizingDissipation(
+        time_step = dt_slow,
+        minimum_node_spacing = minΔx,
+        diffusive_cfl = 0.003,
+        viscous_cfl = 0.02,
+        Δu = 1e-3,
+        Δθ = 1e-3,
+    )
+    println(" my_variable_dissip: Max-visc = ",my_variable_dissip.νʰ_max," m^2/s")
+    println(" my_variable_dissip: Max-diff = ",my_variable_dissip.κʰ_max," m^2/s")
+
     model = OceanModel{FT}(
         prob,
         grav = gravity,
@@ -179,8 +213,10 @@ function main(; restart = 0)
         add_fast_substeps = add_fast_substeps,
         numImplSteps = numImplSteps,
         ivdc_dt = ivdc_dt,
-        νʰ = FT(15e3),
+        stabilizing_dissipation = my_variable_dissip,
+        νʰ = FT(8e3),
         νᶻ = FT(5e-3),
+        κʰ = FT(1e3),
         κᶜ = FT(1.0),
         fₒ = FT(3.8e-5),
         β = FT(1.7e-11),
@@ -191,8 +227,6 @@ function main(; restart = 0)
 
     barotropicmodel = BarotropicModel(model)
 
-    minΔx = min_node_distance(grid_3D, HorizontalDirection())
-    minΔz = min_node_distance(grid_3D, VerticalDirection())
     #- 2 horiz directions
     gravity_max_dT = 1 / (2 * sqrt(gravity * H) / minΔx)
     # dt_fast = minimum([gravity_max_dT])
