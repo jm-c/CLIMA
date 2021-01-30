@@ -19,6 +19,10 @@ function init_state_prognostic!(
     localgeo,
     t,
 )
+    return ocean_ini2d_state!(m.baroclinic.problem, Q, A, localgeo, t)
+end
+
+function ocean_ini2d_state!(p::AbstractOceanProblem, Q, A, localgeo, t)
     Q.U = @SVector [-0, -0]
     Q.η = -0
     return nothing
